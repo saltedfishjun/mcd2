@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MCD2 配装器 · Demo</title>
+<style>
+ :root{--bg:#12100e;--card:#1e1b18;--card2:#262220;--fg:#efe6d8;--dim:#a99f92;--line:#3a3430;--acc:#6fd3ff;--ok:#7ddc7d;--lit:#ffd75e;--warn:#ff8f6b}
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans SC",system-ui,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6}
+ .wrap{max-width:1260px;margin:0 auto;padding:14px 16px 24px;display:flex;flex-direction:column;min-height:100vh}
+ html,body{min-height:100%}
+
+ h1{font-size:22px;margin:0 0 2px} h1 .e{color:var(--acc)}
+ .sub{color:var(--dim);font-size:12.5px;margin-bottom:12px}
+ .rules{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:12.5px;color:var(--dim);margin-bottom:12px}
+ .rules b{color:var(--fg)}
+ .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:14px}
+ /* 布局：手机单栏 → 中屏两栏(左跨行) → 宽屏三栏(装备格|综合|总览) */
+ /* 布局：S=灵魂消耗(宽同装备区) M=综合数据(跨行) L=装备区；整体左对齐 */
+ .cols{display:grid;gap:8px 16px;grid-template-columns:minmax(0,1fr);grid-template-areas:"S" "M" "L";align-items:start;flex:1 1 auto}
+ @media(min-width:1001px){.cols{grid-template-columns:minmax(0,1fr) 410px;grid-template-areas:"S M" "L M";grid-template-rows:auto minmax(0,1fr)}}
+ @media(min-width:1460px){.wrap{max-width:2100px}.cols{grid-template-columns:minmax(0,1fr) 440px}}
+ @media(min-width:2200px){.wrap{max-width:2380px}.cols{grid-template-columns:minmax(0,1fr) 470px}}
+ .soulbar{grid-area:S;margin:0 !important}
+ .colmain{grid-area:L}
+ /* 装备区随可用高度上下拉伸（避免灵魂条与装备区之间留空），卡片跟着变高 */
+ @media(min-width:1001px){
+   /* 行高均分填满（卡片内容居中）→ 既不在底部留空、也不在框之间出现大缝 */
+   .colmain{align-self:stretch;display:flex;flex-direction:column}
+   /* 行基准改为内容高度（flex-basis:auto）且不允许收缩 → 文字换行变高时不会把内容挤出卡片；
+      仍保留 grow:1 把多余高度分给各行，避免出现大缝隙 */
+   .colmain>.row{flex:1 0 auto;min-height:78px}
+   .colmain>.row>.slot{display:flex;flex-direction:column;justify-content:center}
+   .colmain>h2:first-child{margin-top:0}
+ }
+ .colmid{grid-area:M;align-self:stretch;display:flex;flex-direction:column;gap:12px;margin:0;min-height:0}
+ .colmid>.panel{flex:0 0 auto}
+ .colmid>.panel:first-child{display:flex;flex-direction:column;justify-content:flex-start}
+ /* 综合数据：内容靠上，来源默认展开把面板充实 */
+ /* 综合数据：上半部分（词条）默认展开并单独滚动，附魔区固定在框底 */
+ #stats{display:flex;flex-direction:column;justify-content:flex-start;overflow:visible;max-height:none}
+ #stats .sec-top{flex:0 0 auto;min-height:0;overflow:visible}
+ #stats .sec-ench{flex:0 0 auto;border-top:1px solid var(--line);margin-top:8px;padding-top:7px}
+ #stats .sec-top{scrollbar-color:rgba(120,175,195,.25) transparent}
+ #stats .sec-top::-webkit-scrollbar{width:6px}
+ #stats .sec-top::-webkit-scrollbar-track{background:transparent}
+ #stats .sec-top::-webkit-scrollbar-thumb{background:rgba(120,175,195,.22);border-radius:6px}
+ #stats .sec-top::-webkit-scrollbar-thumb:hover{background:rgba(120,175,195,.45)}
+
+/* 仅桌面双栏：综合数据填充可用高度、词条区内部滚动（基础规则=窄屏/手机自然高度、整页滚动） */
+@media(min-width:1001px){
+  .colmid>.panel:first-child{flex:1 1 auto;min-height:0;overflow:hidden}
+  #stats{flex:1 1 auto;min-height:0}
+  #stats .sec-top{flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;padding-right:3px}
+}
+ @media(max-width:1000px){.cols{grid-template-columns:1fr;grid-template-areas:"S" "L" "M"}}
+ /* 底部总览（横向） */
+ .overview{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:16px}
+ .ovhead{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+ .ovtitle{font-size:13.5px;font-weight:700;color:var(--acc)}
+ .ovgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px}
+ .ovcard{background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-width:0}
+ .ovh{display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:700;margin-bottom:5px;border-bottom:1px dashed var(--line);padding-bottom:5px}
+ .ovh img{width:26px;height:26px;image-rendering:pixelated;background:#0b0a09;border-radius:5px;flex:0 0 26px}
+ .ovh .ovn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .ovl{font-size:11.5px;line-height:1.5;margin:3px 0;overflow-wrap:anywhere}
+ .ovk{color:var(--dim);margin-right:3px}
+ .ovl.ench{color:#9fd8f5}
+ .ovempty{color:var(--dim);font-size:12px}
+ /* 法器灵魂消耗：顶部横条 */
+ .soulbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px !important;margin-bottom:14px}
+ .soultitle{font-size:12.5px;font-weight:700;color:var(--acc);white-space:nowrap}
+ .soulinline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
+ .soulpill{font-size:11px;border:1px solid #4b5f70;color:#bcd3e2;border-radius:99px;padding:1px 7px;white-space:nowrap}
+ .soulpill b{color:var(--ok)}
+ h2{font-size:15px;margin:16px 0 8px;color:var(--acc)}
+ .row{display:grid;gap:8px}
+ .r2{grid-template-columns:1fr 1fr} .r3{grid-template-columns:repeat(3,1fr)} .r4{grid-template-columns:repeat(4,1fr)}
+ @media(max-width:700px){.r4{grid-template-columns:1fr 1fr}.r3{grid-template-columns:1fr}}
+ .slot{background:var(--card);border:1px dashed var(--line);border-radius:10px;min-height:78px;padding:9px;cursor:pointer;position:relative;transition:.15s;z-index:1}
+ .slot.zopen{z-index:70}   /* 卡内浮层展开时，整卡提到最上层，避免被下方装备框盖住 */
+ .slot:hover{border-color:var(--acc)} .slot.filled{border-style:solid}
+ .slot .ph{color:var(--dim);font-size:12.5px;display:flex;align-items:center;justify-content:center;height:60px;text-align:center}
+ .slot .hd{display:flex;gap:8px;align-items:center}
+ /* 图标尺寸随卡片宽度自适应（上限由 --icon 按屏高给），窗口拉窄/拉宽自动跟手 */
+ .slot .hd img,.slot img{width:min(var(--icon,64px),12.5%);height:auto;aspect-ratio:1/1;image-rendering:pixelated;background:#0b0a09;border-radius:10px;flex:0 0 min(var(--icon,64px),12.5%)}
+ .slot .nm{font-size:clamp(13px,0.62vw + 6.6px,17px)}
+ .slot .hd{padding-bottom:8px;border-bottom:1px dashed var(--line);margin-bottom:8px}
+ .slot .nm{font-weight:800;line-height:1.25;letter-spacing:.2px}
+ .slot .cat{font-size:12px;color:var(--dim)}
+ .slot .badge{font-size:11px}
+ .slot .ph{font-size:13.5px}
+ .slot .rm{font-size:15px;padding:3px 7px}
+ .slot .rm{position:absolute;top:4px;right:6px;color:var(--dim);font-size:13px;padding:2px 5px}
+ .slot .rm:hover{color:var(--warn)}
+ .fx{font-size:11.5px;color:var(--lit);margin-top:5px}
+ .fcnt{font-size:11px;color:var(--dim);margin-top:3px}
+ .side{position:sticky;top:14px;align-self:start}
+ .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+ .panel h3{margin:0 0 8px;font-size:13.5px;color:var(--acc)}
+ .sum{font-size:12.5px;color:var(--dim);white-space:pre-wrap}
+ button,select,input[type=text]{background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12.5px;font-family:inherit}
+ button{cursor:pointer} button:hover{border-color:var(--acc)} button.pri{background:#20404d;border-color:#2f6b80}
+ .tagline{font-size:11px;color:var(--dim)}
+ .stat-top{font-size:12.5px;margin-bottom:8px}
+ .sgk{margin:11px 0} .sg{margin:7px 0} .sg-t{font-size:12px;color:var(--lit);margin-bottom:4px}
+ .sg-h{font-size:12.5px;font-weight:700;color:#dbe9f2;margin:7px 0 3px;display:flex;gap:7px;align-items:baseline;border-left:2px solid #2f6b80;padding-left:7px}
+ .sg-h .v{color:var(--ok);font-weight:700}
+ .sg-i{font-size:12px;padding-left:8px;line-height:1.5} .sg-i .v{color:var(--ok)}
+ .bighead{font-size:12.5px;font-weight:700;color:var(--acc);margin:6px 0 4px}
+ .dsum{cursor:pointer;font-size:13.5px;font-weight:700;color:var(--acc);list-style:none}
+ .dsum::-webkit-details-marker{display:none}
+ .dsum::before{content:'▾ ';color:var(--dim);font-size:11px}
+ details:not([open])>.dsum::before{content:'▸ '}
+ .sgrow{margin:3px 0}
+ .sgrow>summary{display:flex;gap:6px;align-items:baseline;cursor:pointer;list-style:none;font-size:12px;padding:2px 4px;border-radius:6px}
+ .sgrow>summary::-webkit-details-marker{display:none}
+ .sgrow>summary::before{content:'▸';color:var(--dim);font-size:10px}
+ .sgrow[open]>summary::before{content:'▾'}
+ .sgrow>summary:hover{background:#232b30}
+ .sgrow .sgn{flex:1;min-width:0}
+ .sgdet{padding:2px 0 4px 22px;border-left:1px dashed var(--line);margin-left:8px}
+ #stats{max-height:none;overflow:visible}
+ .mask{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+ .mask.on{display:flex}
+ .modal{background:var(--card);border:1px solid var(--line);border-radius:12px;width:min(920px,100%);max-height:86vh;display:flex;flex-direction:column}
+ .mhead{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+ .mhead .t{font-weight:700;font-size:14px;flex:1;min-width:120px}
+ .mbody{overflow:auto;padding:10px 14px}
+ .ilist{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:8px}
+ .it{display:flex;gap:9px;align-items:center;background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:7px 9px;cursor:pointer}
+ .it:hover{border-color:var(--acc)} .it.rec{border-color:#5e7a2a}
+ .it img{width:34px;height:34px;image-rendering:pixelated;background:#0b0a09;border-radius:6px}
+ .it .n{font-size:12.5px;font-weight:600} .it .t{font-size:10.5px;color:var(--dim)}
+ .badge{font-size:10px;border:1px solid var(--line);border-radius:99px;padding:0 6px;color:var(--dim)}
+ .badge.u{color:var(--lit);border-color:#6b5a2a} .badge.r{color:#b6e26a;border-color:#5e7a2a}
+ .badge.e{color:#7fd4ff;border-color:#2f6b80}
+ .fxline{font-size:11px;color:var(--lit);margin-top:4px;line-height:1.45;white-space:normal}
+ /* 槽位卡内直接展示效果 + 卡内展开编辑 */
+ .slot.open{grid-column:1/-1}
+ .sl{font-size:12.5px;line-height:1.5;margin:3px 0;overflow-wrap:anywhere}
+ .sl .k{color:var(--dim);margin-right:4px}
+ .sl.fx{color:var(--lit)}
+ .sl.ench{color:#9fd8f5}
+ .sl.empty{color:#6d6a63}
+ .slot .editor{margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+ .slot .fcnt{margin-top:5px}
+ /* 行内选项（点某条词条展开） */
+ .sl.row{position:relative;cursor:pointer;border-radius:6px;padding:2px 4px;display:flex;gap:5px;align-items:baseline}
+ .sl.row:hover{background:#232b30}
+ /* 展开时：行与选项融合成一个整体（无缝同边框） */
+ .sl.row.open{background:rgba(18,24,29,.94);border:1px solid rgba(96,180,208,.7);border-bottom:none;border-radius:9px 9px 0 0;padding:4px 8px;backdrop-filter:blur(44px) saturate(165%) brightness(1);-webkit-backdrop-filter:blur(44px) saturate(165%) brightness(1);z-index:5}
+ .sl.row.open + .sl.row{border-top:none}
+ .sl.row .k{flex:0 0 auto}
+ .ro-caret{margin-left:auto;color:var(--dim);font-size:10px;flex:0 0 auto}
+ /* 选项浮层：从该词条行“长出来”（带小三角+弹出动画），不改变卡片尺寸；空间不够向上 */
+ /* 选项区：与展开的行无缝相接，看起来是同一个框 */
+ .rowopts{position:absolute;left:-1px;right:-1px;top:100%;z-index:80;
+  background:linear-gradient(180deg,rgba(18,24,29,.955),rgba(10,14,17,.975));
+  backdrop-filter:blur(64px) saturate(170%) brightness(.99);-webkit-backdrop-filter:blur(64px) saturate(170%) brightness(.99);
+  border:1px solid rgba(96,180,208,.7);border-top:none;border-radius:0 0 9px 9px;
+  max-height:min(264px,46vh);overflow:auto;padding:6px 6px 6px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10), 0 22px 42px #0009;
+  background-clip:padding-box}
+ .rowopts::before{display:none}
+ .rowopts::after{display:none}
+ .rowopts.up{top:auto;bottom:100%;border-top:1px solid rgba(70,150,178,.85);border-bottom:none;border-radius:9px 9px 0 0}
+ .sl.row.open.up{border-bottom:1px solid rgba(70,150,178,.85);border-top:none;border-radius:0 0 9px 9px}
+ .rop-title{font-size:11.5px;color:var(--acc);padding:3px 7px 5px;letter-spacing:.3px}
+ .rowopts{scrollbar-width:thin;scrollbar-color:rgba(150,200,220,.22) transparent}
+ .rowopts::-webkit-scrollbar{width:6px;height:6px}
+ .rowopts::-webkit-scrollbar-track{background:transparent}
+ .rowopts::-webkit-scrollbar-thumb{background:rgba(150,200,220,.18);border-radius:6px}
+ .rowopts::-webkit-scrollbar-thumb:hover{background:rgba(150,200,220,.4)}
+ .rop{display:flex;gap:8px;align-items:flex-start;padding:6px 7px;border-radius:6px;cursor:pointer;font-size:13px;line-height:1.45;font-weight:500}
+ .rop:hover{background:#1e2b33}
+ .rop.sel{background:#20404d}
+ .rop .chip{flex:0 0 auto;font-size:11px;border:1px solid #4b5f70;color:#a8c0d2;border-radius:5px;padding:0 5px;margin-top:2px;min-width:24px;text-align:center}
+ .rop .tx{flex:1;min-width:0}
+ .rop.clr{color:var(--warn);font-size:12.5px}
+ .affline{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}
+ .pill2{font-size:10.5px;border:1px solid #4b5f70;color:#bcd3e2;border-radius:99px;padding:1px 6px;white-space:nowrap}
+ .it{align-items:flex-start}
+ .warnline{color:var(--warn);font-size:12.5px;line-height:1.5}
+ .okline{color:var(--ok);font-size:12.5px;line-height:1.5}
+ .editor{display:grid;gap:8px}
+ .aff{background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+ .aff .lbl{font-size:11px;color:var(--dim);margin-bottom:4px}
+ .aff .sel{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+ .aff .ds{font-size:11.5px;color:var(--dim);margin-top:5px}
+ .lock{color:var(--lit)}
+ /* 自定义下拉（选词条/附魔统一） */
+ .dd{position:relative;flex:1;min-width:0}
+ .dd-toggle{display:flex;gap:8px;align-items:center;justify-content:space-between;width:100%;text-align:left;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--fg);cursor:pointer;min-height:36px}
+ .dd-toggle:hover{border-color:var(--acc)}
+ .dd-toggle.open{border-color:var(--acc);box-shadow:0 0 0 2px #6fd3ff22}
+ .dd-cur{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .dd-cur.empty{color:var(--dim)}
+ .dd-caret{color:var(--dim);font-size:11px;flex:0 0 auto}
+ .dd-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;background:#141a1e;border:1px solid #2f6b80;border-radius:10px;max-height:min(240px,42vh);overflow:auto;box-shadow:0 12px 28px #000b;padding:4px;overscroll-behavior:contain}
+ .dd-item{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:12.5px;line-height:1.45}
+ .dd-item:hover{background:#1e2b33}
+ .dd-item.sel{background:#20404d}
+ .dd-item .chip{flex:0 0 auto;font-size:10px;border:1px solid #4b5f70;color:#9fb6c9;border-radius:5px;padding:1px 5px;margin-top:2px;min-width:26px;text-align:center}
+ .dd-item .tx{flex:1;min-width:0;color:var(--fg)}
+ .dd-menu::-webkit-scrollbar{width:8px}
+ .dd-menu::-webkit-scrollbar-thumb{background:#33414a;border-radius:4px}
+ .aff select{max-width:100%}
+ .effbox{background:#0f1a20;border:1px solid #2f6b80;border-radius:8px;padding:7px 10px;margin-top:7px}
+ .effbox.enc{border-color:#7a5ea8;background:#171226}
+ .eff-l{font-size:10.5px;color:#7fd4ff;margin-bottom:2px;letter-spacing:.5px}
+ .effbox.enc .eff-l{color:#c3a4ff}
+ .eff-v{font-size:12.5px;color:var(--fg)}
+ .eff-n{font-size:11px;color:var(--dim);margin-top:3px}
+ #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#2b4a55;border:1px solid #3f7f92;padding:8px 16px;border-radius:9px;font-size:13px;display:none;z-index:99}
+
+ /* 矮屏（笔记本/1080p 等）紧凑一些，尽量一屏看全 */
+ @media(max-height:980px){
+   .wrap{padding-top:10px}
+   h1{font-size:19px}.sub{margin-bottom:8px}
+   .rules{padding:7px 12px;font-size:11.5px;margin-bottom:10px}
+   .bar{padding:7px 10px;margin-bottom:10px;gap:6px}
+   h2{font-size:13.5px;margin:9px 0 5px}
+   .slot{min-height:54px;padding:6px 8px}
+   .slot{--icon:46px}
+   .sl{font-size:12px;margin:2px 0}
+   .slot .hd{padding-bottom:6px;margin-bottom:6px}
+   .slot .ph{height:40px;font-size:11.5px}
+   .slot .nm{font-size:12px}.slot .cat,.slot .fcnt{font-size:10.5px}
+   .fx{font-size:10.5px;margin-top:3px}
+   .panel{padding:9px 11px}.panel h3{font-size:12.5px;margin-bottom:6px}
+   .stat-top{font-size:12px;margin-bottom:5px}
+   .sg-i,.sgrow>summary{font-size:11.5px}
+   .overview{padding:9px 12px;margin-top:10px}
+   .ovgrid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+   .ovcard{padding:6px 8px}.ovl{font-size:10.5px;line-height:1.4;margin:2px 0}
+   .ovh{font-size:11.5px;margin-bottom:3px;padding-bottom:3px}.ovh img{width:22px;height:22px;flex:0 0 22px}
+ }
+ /* 更矮（1440×900 / 1366×768 这类）：再压一档，争取一屏看完 */
+ @media(max-height:920px){
+   h1{font-size:17px}.sub{font-size:11.5px;margin-bottom:5px}
+   .rules{padding:5px 10px;font-size:11px;margin-bottom:8px;line-height:1.5}
+   .bar{padding:5px 9px;margin-bottom:8px}
+   .soulbar{padding:5px 10px !important}
+   h2{font-size:12.5px;margin:7px 0 4px}
+   .slot{min-height:46px;padding:5px 7px}
+   .slot{--icon:38px}
+   .sl{font-size:11.5px;margin:1px 0}
+   .slot .hd{padding-bottom:5px;margin-bottom:5px}
+   .slot .ph{height:34px}
+   .fx{display:none}
+   .panel{padding:8px 10px}
+   .overview{padding:8px 10px;margin-top:8px}
+   .ovgrid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
+   .ovcard{padding:5px 7px}
+   .ovh{font-size:11px}.ovh img{width:18px;height:18px;flex:0 0 18px}
+   .ovl{font-size:10px;line-height:1.3;margin:1px 0}
+ }
+ @media(max-height:820px){
+   .rules{display:none}
+   .sub{display:none}
+   .slot{min-height:38px}
+   .ovl{font-size:9.5px;line-height:1.25}
+   .ovcard{padding:4px 6px}
+   .overview{padding:6px 9px;margin-top:6px}
+ }
+ /* 总览：宽屏强制 9 列（一件一格，不换行）—— 放在最后以覆盖紧凑档 */
+ @media(min-width:1360px){.ovgrid{grid-template-columns:repeat(9,minmax(0,1fr));gap:8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>MCD2 <span class="e">配装器</span> <span style="font-size:13px;color:var(--dim)">Demo</span></h1>
+  <div class="sub">数据取自本地图鉴档案（272 件可装备 · 61 装备词条 · 32 附魔）· 全前端 · 进度与配装存本地</div>
+
+  <div class="rules">
+    <b>规则</b>：一套 = 近战×1 + 远程×1 + 头盔/胸甲/护腿/靴 + 法器×3。每件装备 <b>3 个词条</b>（独特 = 1 独特词条固定 + 2 可选；其他 = 3 可选）；
+    每件 <b>1 个附魔</b>，可选范围<b>按图鉴附魔池</b>（法器无附魔）。
+    <details style="margin-top:6px">
+      <summary class="dsum" style="font-size:12px">使用提示</summary>
+      <div class="tagline" style="margin-top:4px">
+        · 点格子选装备；已装备的格子点开可改词条/附魔，右上角 ✕ 卸下<br>
+        · 同一件装备不能重复选同一个词条<br>
+        · 推荐 = 「主武器」（近战 / 远程·近身 / 远程·远距 / 法器）×「推荐方向」×「推荐口径」<br>
+        · 远程主用时区分距离：「贴身/近距离」与「远距/狙击/蓄力」会按所选取向决定权重（不匹配的降权）<br>
+        · <b>通用</b>：伤害按数值同权比较，元素仅 ×1.05 微调；<b>属性</b>：选中元素的词条权重提高（×1.8）<br>
+        · 「导出分享图」生成 PNG，可直接发群
+      </div>
+    </details>
+  </div>
+
+  <div class="bar">
+    <span class="tagline">配装名</span>
+    <input type="text" id="name" placeholder="未命名配装" style="width:130px">
+    <span class="tagline">主武器</span>
+    <select id="main" onchange="onDirChange()">
+      <option value="melee">近战</option>
+      <option value="rclose">远程·近身为主</option>
+      <option value="rfar">远程·远距为主</option>
+      <option value="artifact">法器</option>
+    </select>
+    <span class="tagline">推荐方向</span>
+    <select id="dir" onchange="onDirChange()">
+      <option value="out">输出向</option><option value="all">综合向</option><option value="def">生存向</option>
+    </select>
+    <span class="tagline">推荐口径</span>
+    <select id="elemMode" onchange="onDirChange()">
+      <option value="gen">通用</option><option value="attr">属性</option>
+    </select>
+    <button class="pri" onclick="saveAs()">保存/另存</button>
+    <select id="saves" onchange="loadNamed(this.value)" style="min-width:150px"><option value="">— 载入配装 —</option></select>
+    <button onclick="delNamed()">删除</button>
+    <span style="flex:1"></span>
+    <button onclick="exportJSON()">导出 JSON</button>
+    <button class="pri" onclick="exportPNG()">导出分享图</button>
+    <button onclick="copyLinkUI()">复制分享链接</button>
+    <input id="shareCode" type="text" placeholder="粘贴分享代码" style="width:200px;letter-spacing:.5px" onkeydown="if(event.key==='Enter')loadCodeUI()">
+    <button onclick="loadCodeUI()">载入代码</button>
+    <button onclick="copyCodeUI()">生成/复制代码</button>
+    <button onclick="resetAll()">清空</button>
+  </div>
+
+  <div class="cols">
+    <!-- S 灵魂消耗（宽 = 装备区） / M 综合数据（跨两行，与两者上下对齐） / L 装备区 -->
+    <div class="panel soulbar">
+      <span class="soultitle">法器灵魂消耗</span>
+      <div id="soul" class="soulinline"></div>
+      <label class="tagline" style="margin-left:auto;white-space:nowrap">基础容量
+        <input type="text" id="soulBase" value="100" style="width:56px" oninput="drawSummary()"></label>
+    </div>
+    <div class="colmain">
+      <h2>武器</h2>
+      <div class="row r2">
+        <div class="slot" data-slot="melee"></div>
+        <div class="slot" data-slot="ranged"></div>
+      </div>
+      <h2>护甲</h2>
+      <div class="row r4">
+        <div class="slot" data-slot="helm"></div><div class="slot" data-slot="chest"></div>
+        <div class="slot" data-slot="legs"></div><div class="slot" data-slot="boots"></div>
+      </div>
+      <h2>法器</h2>
+      <div class="row r3">
+        <div class="slot" data-slot="art0"></div><div class="slot" data-slot="art1"></div><div class="slot" data-slot="art2"></div>
+      </div>
+    </div>
+
+    <div class="colmid">
+      <div class="panel">
+        <h3>综合数据 <span class="tagline">⚠️ 非最终伤害倍率（本地档案无伤害结算管线，此处仅文字线性相加）・点标题行可展开看来源</span></h3>
+        <div id="stats"></div>
+      </div>
+      
+    </div>
+  </div>
+
+</div>
+
+<!-- 选装备 -->
+<div class="mask" id="mItem" onclick="if(event.target===this)closeM('mItem')">
+  <div class="modal">
+    <div class="mhead">
+      <div class="t" id="mTitle">选择装备</div>
+      <input type="text" id="q" placeholder="搜索名称 / 英文名" oninput="renderList()">
+      <select id="fElem" onchange="renderList()"><option value="">全部元素</option></select>
+      <label class="tagline" id="lblU"><input type="checkbox" id="onlyU" onchange="renderList()"> 只看独特</label>
+      <label class="tagline"><input type="checkbox" id="showAff" onchange="saveShowAff()"> 显示适配词条</label>
+      <label class="tagline"><input type="checkbox" id="recOnly" onchange="renderList()"> 只看推荐</label>
+      <button onclick="closeM('mItem')">关闭</button>
+    </div>
+    <div class="mbody"><div class="ilist" id="ilist"></div></div>
+  </div>
+</div>
+
+
+<div id="toast"></div>
+
+<!-- 数据：优先用 data.js（用 script 标签载入，file:// 本地双击也能用）；否则回退 fetch data.json -->
+<script src="data.js"></script>
+<script>
+// 2026-10-05 主人要求：删除职业分类，元素分类改为 灵魂/毒/电/冰/火/纯物理
+const SLOT_LABEL={melee:'近战武器',ranged:'远程武器',helm:'头盔',chest:'胸甲',legs:'护腿',boots:'靴子',artifact:'法器'};
+const KIND={melee:'melee',ranged:'ranged',helm:'helm',chest:'chest',legs:'legs',boots:'boots',art0:'artifact',art1:'artifact',art2:'artifact'};
+const KEY=['melee','ranged','helm','chest','legs','boots','art0','art1','art2'];
+let DB=null,S={},saves={},curPick=null,curType='melee';
+
+function boot(j){ DB=j; initFilters(); load(); drawAll(); refreshSaves();
+  // 「显示适配词条」开关：默认开，记忆上次选择
+  try{ const c=document.getElementById('showAff'); if(c) c.checked = (localStorage.getItem('mcd2showaff')!=='0'); }catch(e){}
+}
+
+const item=id=>DB.items.find(x=>x.id===id);
+const affDef=b=>DB.aff[b]||{name:b,desc:'',tiers:[]};
+const enchDef=b=>DB.ench[b]||{name:b,desc:'',tiers:[]};
+const toast=m=>{const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',1800);};
+
+/* ---------- 筛选器初始化 ---------- */
+function initFilters(){
+  const order=['火焰','毒素','灵魂','冰霜','闪电','物理'];   // 主人指定顺序
+  const els=[...new Set(DB.items.flatMap(x=>x.el||[]))];
+  els.sort((a,b)=>{ const ia=order.indexOf(a), ib=order.indexOf(b); return (ia<0?99:ia)-(ib<0?99:ib); });
+  document.getElementById('fElem').innerHTML='<option value="">全部元素</option>'+els.map(e=>`<option value="${e}">${e}</option>`).join('');
+}
+// 推荐依据：当前【近战武器】的元素（纯物理不参与匹配，否则会兜底命中大多数）
+// 主武器类型：melee / ranged / artifact（推荐主题跟着它走）
+function mainType(){ const e=document.getElementById('main'); return e?e.value:'melee'; }
+const isRangedMain=()=>{ const m=mainType(); return m==='rclose'||m==='rfar'||m==='ranged'; };
+function themeItem(){
+  const mt=mainType();
+  if(isRangedMain()){ const st=S.ranged; return st&&st.id?item(st.id):null; }
+  if(mt==='artifact'){ for(const k of ['art0','art1','art2']){ const st=S[k]; if(st&&st.id) return item(st.id); } return null; }
+  const st=S.melee; return st&&st.id?item(st.id):null;
+}
+function theme(){ const it=themeItem(); return {el:it?(it.el||[]).filter(e=>e!=='物理'):[]}; }
+// 词条适用性：与主武器不符的类别降权
+const RE_M=/近战|主要目标|次要目标|跳跃|翻滚|旋风|冲击波|武器伤害/;
+const RE_R=/远程|射击|箭矢|装填|蓄力|弹射物|齐射|瞄准/;
+const RE_A=/法器|图腾|冷却时间/;
+// 距离取向（仅远程主用时有意义）：贴脸 / 远距
+const RE_CLOSE=/近距离|贴身|近身/;
+const RE_FAR=/远距离|狙击|蓄力|瞄准/;
+function rangeWeight(text){
+  const mt=mainType();
+  if(mt!=='rclose'&&mt!=='rfar') return 1;
+  const c=RE_CLOSE.test(text), f=RE_FAR.test(text);
+  if(!c&&!f) return 1;
+  return mt==='rclose' ? (c?1.0:0.2) : (f?1.0:0.25);
+}
+function typeWeight(text){
+  const mt=mainType(), m=RE_M.test(text), r=RE_R.test(text), a=RE_A.test(text);
+  if(mt==='melee')  return r?0.2:(a?0.3:1);
+  if(isRangedMain())return (m?0.2:(a?0.3:1))*rangeWeight(text);
+  return a?1:(m||r?0.2:1);        // 法器主用
+}
+function isRec(it){ return scoreItem(it)>0; }
+function onDirChange(){ drawAll(); if(document.getElementById('mItem').classList.contains('on')) renderList(); }
+
+/* ---------- 推荐打分：独特词条 + 可出词条池「可组合最大值」 ---------- */
+const pctNum=t=>{ const m=(t||'').match(/(\d+(?:\.\d+)?)\s*%/); return m?parseFloat(m[1]):0; };
+// 单条效果的得分：按当前「推荐方向」与「属性契合」加权
+// 输出向优先级（主人指定）：属性契合 > 暴击伤害 > 基础伤害 > 其它；远程专属对近战主武器降权
+function effScore(text,dir){
+  const p=pctNum(text); if(!p) return 0;
+  const th=(theme().el||[]);
+  // 伤害类效果一律按**数值**计权（属性与物理同权），元素契合只做 5% 微弱加成
+  const elemHit=/闪电|冰霜|寒霜|火焰|毒素|灵魂/.test(text)&&/造成的伤害/.test(text)&&th.some(e=>e!=='物理'&&text.includes(e));
+  const defensive=/受到的|所受|降低|减少|反弹|治疗|回复|恢复|躲避|弹开|防护|减伤/.test(text);
+  let out=0;
+  if(defensive) out=0;                                                    // 防守类文本一律不算输出
+  else if(/暴击伤害/.test(text)&&/武器/.test(text)) out=1.25;            // 武器专属暴击伤害（近战/远程武器）→ 抬高权重
+  else if(/暴击/.test(text)) out=1.0;                                     // 暴击率 / 暴击伤害(通用)
+  else if(/对次要目标/.test(text)) out=0.6;                                // 次要目标：覆盖面窄（非主目标）→ 降权
+  else if(/同伴|召唤|宠物/.test(text)) out=0.6;                            // 同伴/召唤物伤害：依赖召唤物 → 降权
+  else if(/造成的伤害|伤害提高|额外造成|武器伤害|对主要目标|满血|受伤敌人|攻击伤害|灵巧|跳跃/.test(text)) out=1.0;  // 基础/属性伤害
+  else if(/攻击速度/.test(text)) out=0.6;
+  // 法器主用「豁免」：冷却 / 蓝量(灵魂) / 法器增伤 / 属性增伤 均按满权重计
+  else if(/冷却时间/.test(text)) out=mainType()==='artifact'?1.0:0;      // 非法器主用：冷却不算输出
+  else if(/灵魂/.test(text)) out=mainType()==='artifact'?1.0:0;          // 灵魂只在法器主用时算资源
+  else if(/伤害/.test(text)) out=0.5;
+  out*=typeWeight(text);                                                   // 与主武器不符的类别降权
+  if(elemHit) out*=elemMode()==='attr'?1.8:1.05;   // 属性口径：抬高所选属性的权重
+  const def=/受到的伤害降低|伤害降低|生命值|恢复|治疗|回复|躲避|弹开|反刺|反弹|减伤|防护/.test(text)?1.0:0;
+  if(dir==='out') return p*out;
+  if(dir==='def') return p*def;
+  return p*out+p*def;
+}
+function curDir(){ const e=document.getElementById('dir'); return e?e.value:'out'; }
+function elemMode(){ const e=document.getElementById('elemMode'); return e?e.value:'gen'; }
+// 元素契合：与当前近战武器的元素有交集 → 1.5 倍
+function elemMult(it){ const t=theme(); if(!t.el.length||t.el.includes('物理')) return 1;
+  return (it.el||[]).some(e=>t.el.includes(e))?1.5:1; }
+function scoreItem(it){
+  if(!it) return 0;
+  const d=curDir(), slots=it.u?2:3;   // 可组合最大值：独特=1固定+2可选，其它=3可选
+  // 独特固定词条不可洗、能区分装备 → 权重×3（可选词条任何人可洗，权重×1）
+  let fx=0; (it.fx||[]).forEach(f=>{ fx+=effScore(f.desc,d)*3; });
+  const pool=(it.pool||[]).map(b=>effScore(tierDesc(affDef(b),maxTier(affDef(b))),d))
+    .filter(v=>v>0).sort((a,b)=>b-a).slice(0,slots);
+  const m=elemFit(it)?(elemMode()==='attr'?1.25:1.05):1;   // 装备元素契合：通用 +5% / 属性 +25%
+  return Math.round((fx+pool.reduce((a,b)=>a+b,0))*m*10)/10;
+}
+// 元素契合标记（与推荐分开，用于显示）
+function elemFit(it){ const t=theme(); return !(!t.el.length||t.el.includes('物理')) && (it.el||[]).some(e=>t.el.includes(e)); }
+
+/* ---------- 选装备 ---------- */
+function pick(slotType){
+  curType=slotType;
+  curPick = slotType==='artifact' ? (['art0','art1','art2'].find(k=>!S[k])||'art0') : slotType;
+  document.getElementById('mTitle').textContent='选择 · '+SLOT_LABEL[slotType];
+  document.getElementById('q').value='';
+  // 法器没有“独特”─→ 选法器时隐藏并忽略“只看独特”，避免列表为空
+  const art=(slotType==='artifact');
+  document.getElementById('lblU').style.display = art?'none':'';
+  if(art){ document.getElementById('onlyU').checked=false; }
+  renderList(); openM('mItem');
+}
+function saveShowAff(){ try{ localStorage.setItem('mcd2showaff', document.getElementById('showAff').checked?'1':'0'); }catch(e){} renderList(); }
+function showAff(){ const e=document.getElementById('showAff'); return e?e.checked:false; }
+// 该装备在「当前推荐方向」下适配的可选词条（取得分最高的几条）
+function affBadges(it){
+  const d=curDir(), th=(theme().el||[]);
+  const offElem=n=>th.length&&!th.includes('物理')&&/法师/.test(n)&&!th.some(e=>n.includes(e));
+  return (it.pool||[]).map(b=>{ const def=affDef(b); const t=tierDesc(def,maxTier(def));
+      return {n:def.name, t:t, v:pctNum(t), s:effScore(t,d)}; })
+    .filter(x=>x.s>0&&!offElem(x.n)).sort((a,b)=>b.s-a.s).slice(0,4)
+    .map(x=>`<span class="pill2">${hlPct((x.t||'').replace(/。\s*$/,''))}</span>`).join('');
+}
+function renderList(){
+  const slotType=curType;
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  const art=(slotType==='artifact');
+  const onlyU=art?false:document.getElementById('onlyU').checked, recOnly=document.getElementById('recOnly').checked;
+  const fe=document.getElementById('fElem').value;
+  let list=DB.items.filter(x=>x.slot===slotType)
+    .filter(x=>!onlyU||x.u).filter(x=>!recOnly||isRec(x))
+    .filter(x=>!fe||(x.el||[]).includes(fe))
+    .filter(x=>!q||x.n.toLowerCase().includes(q)||(x.e||'').toLowerCase().includes(q));
+  list.forEach(x=>x._s=scoreItem(x));
+  list.sort((a,b)=>b._s-a._s||a.n.localeCompare(b.n,'zh'));
+  const dl=curDir()==='out'?'输出向':(curDir()==='def'?'生存向':'综合向');
+  document.getElementById('ilist').innerHTML=list.map(x=>`
+    <div class="it ${x._s>0?'rec':''}" onclick="choose('${x.id}')">
+      <img src="${x.icon}" loading="lazy">
+      <div style="min-width:0;flex:1"><div class="n">${x.n} ${x.u?'<span class="badge u">独特</span>':''}${x._s>0?' <span class="badge r">推荐 '+x._s+'</span>':''}${elemFit(x)?' <span class="badge e">属性契合</span>':''}</div>
+      <div class="t">${(x.el||[]).join('/')||'-'} ・ 词条${x.pool.length} 附魔${x.ench.length}${x.slot==='artifact'&&x.cost!=null?' ・ 灵魂'+x.cost:''}</div>
+      ${x.u&&x.fx&&x.fx.length?`<div class="fxline">◆ ${x.fx.map(f=>hlPct(f.desc)).join(' / ')}</div>`:''}
+      ${showAff()&&x.pool&&x.pool.length?`<div class="affline">${affBadges(x)}</div>`:''}</div>
+    </div>`).join('')||'<div class="tagline">没有匹配的装备</div>';
+}
+function choose(id){
+  const it=item(id);
+  S[curPick]={id,aff: it.u?[{lock:1},{},{}]:[{},{},{}], ench: it.ench.length?{}:null};
+  closeM('mItem'); save(); drawAll();
+}
+
+/* ---------- 词条/附魔 ---------- */
+// 点某一条词条/附魔就展开那一条的选项（不再整卡展开）
+let openRow=null;   // {k, kind:'aff'|'ench', i}
+function rowOpen(k,kind,i,ev){ ev&&ev.stopPropagation();
+  const same=openRow&&openRow.k===k&&openRow.kind===kind&&openRow.i===i;
+  openRow=same?null:{k,kind,i}; drawAll(); }
+function rowOpts(k,kind,i){
+  const st=S[k], it=item(st.id); if(!it) return '';
+  let items, cur;
+  if(kind==='aff'){
+    const used=(st.aff||[]).filter((a,j)=>j!==i&&a&&a.base).map(a=>a.base);
+    cur=(st.aff[i]||{}).base;
+    items=(it.pool||[]).filter(b=>!used.includes(b)).map(b=>{const d=affDef(b); const mt=maxTier(d); return {base:b,tier:mt,text:tierDesc(d,mt)};});
+  } else {
+    cur=(st.ench||{}).base;
+    items=(it.ench||[]).map(b=>{const d=enchDef(b); const mt=maxTier(d); return {base:b,tier:mt,text:tierDesc(d,mt)};});
+  }
+  const title=kind==='aff'?`选择词条 ${i+1}`:'选择附魔';
+  let h=`<div class="rowopts" onclick="event.stopPropagation()"><div class="rop-title">${title} ・ 取最高阶</div>`;
+  if(cur) h+=`<div class="rop clr" onclick="rowPick('${k}','${kind}',${i},'',event)">✕ 清除选择</div>`;
+  h+=items.map(x=>`<div class="rop ${cur===x.base?'sel':''}" onclick="rowPick('${k}','${kind}',${i},'${x.base}',event)"><span class="chip">${x.tier||'—'}</span><span class="tx">${esc(x.text)}</span></div>`).join('');
+  if(!items.length) h+=`<div class="tagline" style="padding:4px 6px">（没有可选）</div>`;
+  return h+`</div>`;
+}
+function rowPick(k,kind,i,base,ev){
+  ev&&ev.stopPropagation();
+  const st=S[k]; if(!st) return;
+  if(kind==='aff'){
+    if(base&&(st.aff||[]).some((a,j)=>j!==i&&a&&a.base===base)){ toast('同一件装备不能重复选同一个词条'); return; }
+    const keepLock=(st.aff[i]&&st.aff[i].lock)?1:0;
+    st.aff[i]=keepLock?{lock:1}:{};
+    if(base){ st.aff[i].base=base; st.aff[i].tier=maxTier(affDef(base)); }
+  } else {
+    st.ench = base?{base:base,tier:maxTier(enchDef(base))}:{};
+  }
+  openRow=null; save(); drawAll();
+}
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hlPct=s=>esc(s).replace(/(\d+(?:\.\d+)?\s*%)/g,'<span class="v">$1</span>');
+// 词条只取最高阶
+function maxTier(d){ const ts=(d&&d.tiers)||[]; return ts.length?ts[ts.length-1].t:undefined; }
+// （原来的整卡编辑器/下拉已移除：词条与附魔改为行内展开）
+function tierDesc(def,tier){ if(!def) return ''; const ts=def.tiers||[]; const t=ts.find(x=>x.t===tier)||ts[0]; return (t?t.desc:'')||def.desc||''; }
+function removeSlot(ev,k){ ev.stopPropagation(); delete S[k]; save(); drawAll(); }
+
+/* ---------- 渲染 ---------- */
+function placeRowOpts(){   // 浮层自动翻向（下方不够就向上），并把行同步标记 .up
+  const op=document.querySelector('.rowopts'); if(!op) return;
+  const row=op.parentElement;
+  op.classList.remove('up'); if(row) row.classList.remove('up');
+  const a=op.getBoundingClientRect();
+  if(a.bottom>innerHeight-8 && a.top>innerHeight-a.height){ op.classList.add('up'); if(row) row.classList.add('up'); }
+  const b=op.getBoundingClientRect();
+  if(b.top<6){ op.style.maxHeight=Math.min(260, Math.max(120, b.bottom-10))+'px'; }
+  if(b.bottom>innerHeight-6){ op.style.maxHeight=Math.min(260, Math.max(120, innerHeight-b.top-10))+'px'; }
+}
+function drawAll(){ KEY.forEach(draw); drawSummary(); if(openRow) placeRowOpts(); }
+function draw(k){
+  const el=document.querySelector(`[data-slot="${k}"]`); if(!el) return;
+  const st=S[k], it=st&&st.id?item(st.id):null;
+  if(!st||!it){ el.className='slot'; el.innerHTML=`<div class="ph">＋ ${SLOT_LABEL[KIND[k]]}</div>`; el.onclick=()=>pickFor(k); return; }
+  const nAff=it.u?2:3;
+  const isOpen=(kind,i)=>!!(openRow&&openRow.k===k&&openRow.kind===kind&&openRow.i===i);
+  let rows='';
+  if(it.u&&it.fx.length) rows+=`<div class="sl fx"><span class="k">◆独特</span>${esc(it.fx.map(f=>f.desc).join(' / '))}</div>`;
+  for(let i=0;i<nAff;i++){
+    const a=(st.aff||[])[i]||{}; const d=a.base?activeDesc(a.base,'aff',a.tier):'';
+    const op=isOpen('aff',i);
+    let inner=`<span class="k">词条${i+1}${a.tier?' ('+a.tier+')':''}</span>`+
+              (d?hlPct(d):`<span class="tagline">点此选择…</span>`)+`<span class="ro-caret">${op?'▲':'▾'}</span>`;
+    if(op) inner+=rowOpts(k,'aff',i);   // 浮层必须放在行【内部】，才会锚定在该行
+    rows+=`<div class="sl row${op?' open':''}" onclick="rowOpen('${k}','aff',${i},event)">${inner}</div>`;
+  }
+  if(it.ench.length){
+    const eo=st.ench&&st.ench.base, opE=isOpen('ench',0);
+    let innerE=`<span class="k">✧附魔</span>`+(eo?hlPct(activeDesc(st.ench.base,'ench',st.ench.tier)):`<span class="tagline">点此选择…</span>`)+`<span class="ro-caret">${opE?'▲':'▾'}</span>`;
+    if(opE) innerE+=rowOpts(k,'ench',0);
+    rows+=`<div class="sl ench row${opE?' open':''}" onclick="rowOpen('${k}','ench',0,event)">${innerE}</div>`;
+  }
+  el.className='slot filled'+(openRow&&openRow.k===k?' zopen':'');   // 浮层展开时整卡提升层级
+  el.innerHTML=`<div class="rm" onclick="removeSlot(event,'${k}')">✕</div>
+    <div class="hd" onclick="pickFor('${k}')" title="点此更换装备"><img src="${it.icon}" loading="lazy"><div style="min-width:0"><div class="nm">${esc(it.n)}</div>
+    <div class="cat">${it.u?'<span class="badge u">独特</span> ':''}${(it.el||[]).join('/')||''}${it.slot==='artifact'&&it.cost!=null?' ・ 灵魂 '+it.cost:''}</div></div></div>
+    ${rows}`;
+  el.onclick=null;
+}
+// 针对具体槽位更换装备（法器也能精确到 art0/1/2）
+function pickFor(k){
+  curType=KIND[k]; curPick=k;
+  document.getElementById('mTitle').textContent='选择 · '+SLOT_LABEL[KIND[k]];
+  document.getElementById('q').value='';
+  const art=(KIND[k]==='artifact');
+  document.getElementById('lblU').style.display=art?'none':'';
+  if(art) document.getElementById('onlyU').checked=false;
+  renderList(); openM('mItem');
+}
+// 统计口径：每类一个可加数值项（按优先级取第一个命中）
+// 顺序 = 优先级（越具体越靠前，先命中先归类）
+/* 两级统计：大类 -> 小类（正则按先后匹配，先具体后笼统）；同类中先匹配到者优先 */
+const CATS=[
+ // 冷却类必须靠前：避免「远程弹药冷却」被"远程"抢先归到武器伤害
+ ['冷却缩减','util',[['翻滚冷却',/翻滚[^。/]{0,6}冷却/],['法器冷却',/法器冷却/],['弹药冷却',/弹药冷却/],['药水冷却',/药水冷却/],['其他冷却',/冷却/]]],
+ ['元素伤害','out',[['闪电伤害',/闪电/],['冰霜伤害',/冰霜/],['火焰伤害',/火焰/],['毒素伤害',/毒素/],['灵魂伤害',/灵魂攻击/]]],
+ ['暴击','out',[['暴击几率',/暴击几率|暴击率/],['暴击伤害',/暴击伤害/],['暴击(其他)',/暴击/]]],
+ ['对特定目标','out',[['对满血敌人',/满血/],['对受伤敌人',/受伤敌人/],['对负面状态敌人',/受负面状态/],['对主要目标',/主要目标/],['对次要目标',/次要目标/]]],
+ ['攻击速度','out',[['攻击速度',/攻击速度/]]],
+ ['击退','out',[['击退',/击退/]]],
+ ['武器/攻击伤害','out',[['近战攻击',/近战/],['远程攻击',/远程/],['通用/额外伤害',/攻击伤害|武器伤害|造成的伤害|伤害提高|额外造成/]]],
+ ['防护','def',[['伤害减免',/受到的伤害|减伤|防护/],['躲避/弹开',/躲避|弹开/],['反刺/反弹',/反刺|反弹/]]],
+ ['生命','def',[['生命上限',/生命值/],['回复/治疗',/恢复|治疗|回复/]]],
+ ['灵魂','util',[['灵魂',/灵魂/]]],
+ ['掉落/收益','util',[['战利品',/战利品/],['绿宝石',/绿宝石/],['经验',/经验/]]],
+ ['机动','util',[['移动速度',/移动速度/],['翻滚/机动',/翻滚/]]],
+];
+function findSub(t){
+  for(const [cn,kind,subs] of CATS) for(const [sn,re] of subs) if(re.test(t||'')) return {cat:cn,kind:kind,sub:sn};
+  return null;
+}
+function activeDesc(base,kind,tier){ const d=kind==='ench'?enchDef(base):affDef(base); const t=d.tiers.find(x=>x.t===tier)||d.tiers[0]; return (t&&t.desc)||d.desc||''; }
+const pctOf=s=>{const m=(s||'').match(/(\d+(?:\.\d+)?)\s*%/);return m?m[1]+'%':null;};
+function collectStats(){
+  const sums={};   // 大类 -> 小类 -> {v 合计, n 条数, src}
+  const ench=[];   // 附魔单独列出
+  let nAff=0,nEnch=0,slots=0;
+  const add=(text,label,src)=>{ const f=findSub(text); if(!f) return; const p=pctNum(text); if(!p) return;
+    const c=sums[f.cat]||(sums[f.cat]={}); const s=c[f.sub]||(c[f.sub]={v:0,n:0,src:[]});
+    s.v+=p; s.n++; s.src.push({label:label||'',v:p,src:src||'',text:text||''}); };
+  KEY.forEach(k=>{ const st=S[k]; if(!st||!st.id) return; const it=item(st.id); if(!it) return; slots++;
+    (it.fx||[]).forEach(f=>add(f.desc, '◆'+f.name, it.n));                        // 独特固定词条
+    (st.aff||[]).forEach(a=>{ if(!a||!a.base) return; nAff++; a.tier=maxTier(affDef(a.base));
+      add(activeDesc(a.base,'aff',a.tier), affDef(a.base).name, it.n); });
+    if(st.ench&&st.ench.base){ nEnch++; st.ench.tier=maxTier(enchDef(st.ench.base));
+      ench.push({n:enchDef(st.ench.base).name, t:st.ench.tier||'', d:activeDesc(st.ench.base,'ench',st.ench.tier), item:it.n}); }
+  });
+  return {sums,ench,nAff,nEnch,slots};
+}
+function renderStats(){
+  const s=collectStats();
+  let h=`<div class="sec-top"><div class="stat-top">已装备 <b>${s.slots}/9</b> ・ 词条 <b>${s.nAff}</b> ・ 附魔 <b>${s.nEnch}</b></div>`;
+  // ── 大项一：词条（大类 -> 小类，两级合计）
+  let any=false;
+  const rowHTML=(name,src,v,n)=>{
+    return `<details class="sgrow"><summary><span class="sgn">${name}</span>`+
+           `<span class="v">+${v}%</span> <span class="tagline">(${n} 条)</span></summary>`+
+           `<div class="sgdet">`+src.map(z=>`<div class="sg-i">${hlPct(z.text||z.label)} <span class="tagline">— ${esc(z.src)}</span></div>`).join('')+`</div></details>`;
+  };
+  [['输出','out'],['生存','def'],['功能','util']].forEach(([label,kind])=>{
+    const cats=CATS.filter(c=>c[1]===kind && s.sums[c[0]]);
+    if(!cats.length) return; any=true;
+    h+=`<div class="sgk"><div class="sg-t">${label}</div>`+cats.map(c=>{
+      const cn=c[0], co=s.sums[cn], live=c[2].filter(([sn])=>co[sn]);
+      if(live.length===1){ const sn=live[0][0]; const x=co[sn]; return rowHTML(sn,x.src,x.v,x.n); }
+      return `<div class="sg"><div class="sg-h"><span>${cn}</span></div>`+
+             live.map(([sn])=>rowHTML(sn, co[sn].src, co[sn].v, co[sn].n)).join('')+`</div>`;
+    }).join('')+`</div>`;
+  });
+  if(!any) h+=`<div class="tagline">（还没有可统计的词条）</div>`;
+  h+=`</div>`;
+  // ── 大项二：附魔（单独显示，件件不同/不成类，故不合计）
+  h+=`<div class="sec-ench"><div class="bighead" style="margin:0 0 4px">附魔 <span class="tagline">(${s.ench.length})</span></div>`;
+  h+= s.ench.length
+     ? s.ench.map(e=>`<div class="sg-i">✧ ${hlPct(e.d)}<div class="tagline">— ${e.item}</div></div>`).join('')
+     : `<div class="tagline">（未上附魔）</div>`;
+  h+=`</div>`;
+  document.getElementById('stats').innerHTML=h;
+}
+// 灵魂容量自动计算：基础容量 + 配装里所有「灵魂容量」类加成（不重复计同一加成）
+function soulCapacity(){
+  const baseEl=document.getElementById('soulBase');
+  const base=parseFloat(baseEl&&baseEl.value)||0;
+  let bonus=0; const parts=[];
+  KEY.forEach(k=>{ const st=S[k]; if(!st||!st.id) return; const it=item(st.id); if(!it) return;
+    (it.fx||[]).forEach(f=>{ const d=f.desc||''; if(/灵魂容量/.test(d)){ const p=pctNum(d); if(p){ bonus+=p; parts.push('◆'+f.name+' +'+p); } } });
+    (st.aff||[]).forEach(a=>{ if(!a||!a.base) return; const d=activeDesc(a.base,'aff',a.tier);
+      if(/灵魂容量/.test(d)){ const p=pctNum(d); if(p){ bonus+=p; parts.push(affDef(a.base).name+(a.tier?'('+a.tier+')':'')+' +'+p); } } });
+    if(st.ench&&st.ench.base){ const d=activeDesc(st.ench.base,'ench',st.ench.tier);
+      if(/灵魂容量/.test(d)){ const p=pctNum(d); if(p){ bonus+=p; parts.push('✧'+enchDef(st.ench.base).name+' +'+p); } } }
+  });
+  return {base, bonus, cap: Math.round(base+bonus), parts};
+}
+// 开局嗑药回蓝：退出重进后灵魂清空，靠药水类效果回的蓝
+function soulStart(){
+  let v=0; const parts=[];
+  const scan=(d,name)=>{ if(!d) return; if(/药水/.test(d)&&/灵魂/.test(d)){
+    const m=d.match(/(\d+)/); if(m){ const n=parseInt(m[1],10); if(n){ v+=n; parts.push(name+' +'+n); } } } };
+  KEY.forEach(k=>{ const st=S[k]; if(!st||!st.id) return; const it=item(st.id); if(!it) return;
+    (it.fx||[]).forEach(f=>scan(f.desc,'◆'+f.name));
+    (st.aff||[]).forEach(a=>{ if(a&&a.base) scan(activeDesc(a.base,'aff',a.tier), affDef(a.base).name); });
+    if(st.ench&&st.ench.base) scan(activeDesc(st.ench.base,'ench',st.ench.tier), '✧'+enchDef(st.ench.base).name);
+  });
+  return {v, parts};
+}
+function drawSoul(){   // 顶部横条：合计 + 每件法器消耗 + 容量 + 开局嗑药 + 告警
+  const el=document.getElementById('soul'); if(!el) return;
+  const arts=KEY.filter(k=>k.startsWith('art')).map(k=>S[k]).filter(x=>x&&x.id);
+  const sc=soulCapacity(), stt=soulStart();
+  if(!arts.length){ el.innerHTML=`<span class="tagline">未装备法器 ・ 当前灵魂容量 ${sc.cap}</span>`; return; }
+  let tot=0; const pills=arts.map(a=>{ const it=item(a.id); const c=it.cost||0; tot+=c;
+    return `<span class="soulpill">${esc(it.n)} <b>${c}</b></span>`; }).join('');
+  let h=`<span>合计 <b>${tot}</b> ／ 容量 <b>${sc.cap}</b>${sc.bonus?`（基础 ${sc.base} + ${sc.bonus}）`:'（基础 '+sc.base+'）'}</span>`+pills;
+  // 开局蓝量为 0 → 需【嗑药回蓝】与【总蓝量(灵魂容量)】两项同时达标，任一不达标即判不行
+  const need=[];
+  if(stt.v<=0) need.push('没有嗑药回蓝（开局蓝量为 0）');
+  else if(stt.v<tot) need.push(`嗑药回蓝 +${stt.v} < 总消耗 ${tot}（差 ${tot-stt.v}）`);
+  if(sc.cap<tot) need.push(`灵魂容量 ${sc.cap} < 总消耗 ${tot}（差 ${tot-sc.cap}）`);
+  if(!need.length) h+=`<span class="okline">✅ 开局可用全部 ${arts.length} 件法器（嗑药回蓝 +${stt.v} ≥ 消耗 ${tot}，且灵魂容量 ${sc.cap} ≥ 消耗）</span>`;
+  else h+=`<span class="warnline">❌ 开局无法使用全部 ${arts.length} 件法器：${need.join('；')}</span>`;
+  el.innerHTML=h;
+}
+function drawSummary(){   // 只留综合数据 + 灵魂消耗（总览已并入槽位卡）
+  renderStats(); drawSoul();
+}
+
+/* ---------- 多套保存 ---------- */
+function refreshSaves(){
+  const sel=document.getElementById('saves');
+  sel.innerHTML='<option value="">— 载入配装 —</option>'+Object.keys(saves).sort().map(n=>`<option value="${n}">${n}</option>`).join('');
+}
+function saveAs(){
+  const nm=(document.getElementById('name').value||'').trim()||('配装 '+new Date().toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}));
+  document.getElementById('name').value=nm;
+  saves[nm]=JSON.parse(JSON.stringify(S));
+  localStorage.setItem('mcd2saves',JSON.stringify(saves)); refreshSaves(); document.getElementById('saves').value=nm; save();
+  toast('已保存：'+nm);
+}
+function loadNamed(n){
+  if(!n) return;
+  if(!saves[n]) return;
+  S=JSON.parse(JSON.stringify(saves[n])); document.getElementById('name').value=n; save(); drawAll(); toast('已载入：'+n);
+}
+function delNamed(){
+  const n=document.getElementById('saves').value; if(!n||!saves[n]) return toast('先在下拉里选一套配装');
+  if(!confirm('删除配装「'+n+'」？')) return;
+  delete saves[n]; localStorage.setItem('mcd2saves',JSON.stringify(saves)); refreshSaves(); toast('已删除');
+}
+function resetAll(){ if(confirm('清空当前配装？（已保存的配装不受影响）')){ S={}; save(); drawAll(); } }
+function save(){ try{localStorage.setItem('mcd2build',JSON.stringify(S));}catch(e){} }
+function load(){ try{ S=JSON.parse(localStorage.getItem('mcd2build')||'{}')||{}; }catch(e){S={};}
+  try{ saves=JSON.parse(localStorage.getItem('mcd2saves')||'{}')||{}; }catch(e){saves={};} }
+
+/* ---------- 导出 JSON ---------- */
+function exportJSON(){
+  const out={version:2,name:document.getElementById('name').value||'',slots:{}};
+  KEY.forEach(k=>{ const st=S[k]; if(!st||!st.id) return; const it=item(st.id);
+    out.slots[k]={item:it.n,id:it.id,unique:it.u,archetype:it.ar,element:it.el,
+      affixes:(st.aff||[]).filter(a=>a&&a.base).map(a=>({name:affDef(a.base).name,tier:a.tier})),
+      enchant:st.ench&&st.ench.base?{name:enchDef(st.ench.base).name,tier:st.ench.tier}:null}; });
+  const st=collectStats();
+  out.summary={equipped:st.slots+'/9',affixCount:st.nAff,enchantCount:st.nEnch};
+  out.affixStats={}; CATS.forEach(([cn,k,subs])=>{ const co=st.sums[cn]; if(!co) return;
+    const subsOut={}; Object.entries(co).forEach(([sn,x])=>{ subsOut[sn]={sum:x.v,count:x.n}; });
+    out.affixStats[cn]={kind:k,sum:Object.values(co).reduce((a,x)=>a+x.v,0),count:Object.values(co).reduce((a,x)=>a+x.n,0),subs:subsOut}; });
+  out.enchantments=st.ench.map(e=>({name:e.n,tier:e.t,on:e.item,effect:e.d}));
+  const s=JSON.stringify(out,null,2);
+  navigator.clipboard?.writeText(s).then(()=>toast('JSON 已复制到剪贴板'),()=>{});
+  download(new Blob([s],{type:'application/json'}), (out.name||'loadout')+'.json');
+}
+
+/* ---------- 分享代码（自包含：M2 + 54位载荷 + 1位校验；含本地存档） ---------- */
+const B62='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+const TIERS=['I','II','III'];
+function b62(n,w){ let s=''; for(let i=0;i<w;i++){ s=B62[((n%62)+62)%62]+s; n=Math.floor(n/62); } return s; }
+function ub62(str){ let n=0; for(const c of str){ const i=B62.indexOf(c); if(i<0) return -1; n=n*62+i; } return n; }
+function tierNum(t){ if(typeof t==='number') return Math.min(3,Math.max(1,t)); const i=TIERS.indexOf(String(t||'I')); return i<0?1:i+1; }
+// 只对已装槽位编码，每条 7 位：槽位1 + 物品2 + 词条(池内序号×3+阶级)×3 + 附魔1；值均“+1”存，0=空
+function buildCode(){
+  let pay='';
+  KEY.forEach((k,kidx)=>{
+    const st=S[k]||{}; if(!st.id) return;
+    const it=item(st.id); const idx=DB.items.findIndex(x=>x.id===st.id); if(!it||idx<0) return;
+    pay+=b62(kidx,1)+b62(idx+1,2);
+    for(let i=0;i<3;i++){
+      let v=0; const a=(st.aff||[])[i];
+      if(a&&a.base){ const pos=(it.pool||[]).indexOf(a.base); if(pos>=0) v=pos*3+(tierNum(a.tier)-1)+1; }
+      pay+=b62(v,1);
+    }
+    let e=0;
+    if(st.ench&&st.ench.base){ const pos=(it.ench||[]).indexOf(st.ench.base); if(pos>=0) e=pos*3+(tierNum(st.ench.tier)-1)+1; }
+    pay+=b62(e,1);
+  });
+  const chk=b62(pay.split('').reduce((a,c)=>a+c.charCodeAt(0),0)%62,1);
+  return ('M2'+pay+chk).replace(/(.{5})/g,'$1-').replace(/-$/,'');
+}
+function applyCode(code){
+  const t=String(code||'').replace(/[^0-9A-Za-z]/g,'');
+  if(t.slice(0,2)!=='M2') return '格式不对：应以 M2 开头';
+  const body=t.slice(2), plen=body.length-1;
+  if(plen<7||plen>63||plen%7) return `长度不对：应为 7 的倍数（7~63），收到 ${plen} 位`;
+  const pay=body.slice(0,plen);
+  if(B62[pay.split('').reduce((a,c)=>a+c.charCodeAt(0),0)%62]!==body[plen]) return '校验位不匹配（可能抄漏/抄错）';
+  const next={}; KEY.forEach(k=>next[k]={});
+  for(let o=0;o<plen;o+=7){
+    const ki=ub62(pay.slice(o,o+1)), iv=ub62(pay.slice(o+1,o+3));
+    const k=KEY[ki], it=(iv>0&&iv<=DB.items.length)?DB.items[iv-1]:null;
+    if(!k||!it) return '代码内容不识别（版本可能不匹配）';
+    const st={id:it.id, aff: it.u?[{lock:1},{},{}]:[{},{},{}], ench: (it.ench&&it.ench.length)?{}:null};
+    for(let i=0;i<3;i++){ const v=ub62(pay.slice(o+3+i,o+4+i));
+      if(v>0){ const pos=Math.floor((v-1)/3), tn=(v-1)%3+1, base=(it.pool||[])[pos];
+        if(base) st.aff[i]={base, tier:TIERS[tn-1]}; } }
+    const ev=ub62(pay.slice(o+6,o+7));
+    if(ev>0){ const pos=Math.floor((ev-1)/3), tn=(ev-1)%3+1, base=(it.ench||[])[pos];
+      if(base) st.ench={base, tier:TIERS[tn-1]}; }
+    next[k]=st;
+  }
+  S=next; openRow=null; save(); drawAll();
+  return null;
+}
+function shares(){ try{ return JSON.parse(localStorage.getItem('mcd2codes')||'{}'); }catch(e){ return {}; } }
+function saveShareCode(short,long){
+  const db=shares(); db[short]={name:document.getElementById('name').value||'未命名配装', at:Date.now(),
+    slots:KEY.filter(k=>S[k]&&S[k].id).length, long:long||''};
+  try{ localStorage.setItem('mcd2codes', JSON.stringify(db)); }catch(e){}
+}
+/* 部署配置：留空 = 纯静态模式（GitHub Pages / 本地双击）→ 分享用【自包含长码 + 分享链接】；
+   若自建了分享服务（形如 http://your-host/api/share），填入地址即可启用 6 位短码 */
+/* 分享服务：局域网内直连本机 /api/share；其它环境（GitHub Pages 等）走公网分享服务 → 同样给 6 位短码，且与内网版互通 */
+const PUBLIC_SHARE_API='https://share.xn--i8sx5zdlt.top/share';
+const SHARE_API=(window.MCD2_SHARE_API||
+  (location.hostname==='192.168.1.8'?'/api/share':PUBLIC_SHARE_API)).trim();
+const SHORT_RE=/^[2-9A-HJ-NP-Z]{6}$/;   // 与后端字母表一致（去 0/1/I/O）
+// 生成分享码：优先走后端拿 6 位短码；服务不可用时回退为自包含长码
+async function makeShare(){
+  const long=buildCode();
+  if(SHARE_API){ try{
+    const r=await fetch(SHARE_API,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:document.getElementById('name').value||'',code:long})});
+    if(r.ok){ const j=await r.json(); if(j&&j.code){ saveShareCode(j.code,long); return {code:j.code,short:true,long}; } }
+  }catch(e){} }
+  saveShareCode(long,long);
+  return {code:long,short:false,long};
+}
+// 纯静态部署的推荐分享方式：整条链接自带配装（#bd=<代码>）
+function shareLink(){ return location.href.split('#')[0]+'#bd='+encodeURIComponent(buildCode()); }
+async function copyLinkUI(){
+  if(!KEY.some(k=>S[k]&&S[k].id)) return toast('还没装任何装备');
+  const url=shareLink();
+  const txt='分享链接（打开即自动载入该配装）：\n'+url;
+  navigator.clipboard?.writeText(txt).then(()=>toast('✅ 分享链接已复制，发给对方打开即可'),()=>prompt('复制下面的分享链接：',url));
+}
+// 打开带 #bd= 的链接时自动载入
+function applyHashCode(){
+  const m=(location.hash||'').match(/bd=([^&]+)/);
+  if(!m) return false;
+  let code=''; try{ code=decodeURIComponent(m[1]); }catch(e){ code=m[1]; }
+  const err=applyCode(code);
+  if(err){ toast('❌ 分享链接里的配装解析失败：'+err); return false; }
+  toast('✅ 已从分享链接载入配装');
+  return true;
+}
+async function copyCodeUI(){
+  if(!KEY.some(k=>S[k]&&S[k].id)) return toast('还没装任何装备');
+  const r=await makeShare();
+  const inp=document.getElementById('shareCode'); if(inp) inp.value=r.code;
+  const msg=r.short?('✅ 分享码 '+r.code+'（已复制，对方输入即可载入）'):('✅ 已复制自包含长码（本环境没有分享服务，短码不可用；推荐改用「复制分享链接」）');
+  navigator.clipboard?.writeText(r.code).then(()=>toast(msg),()=>toast('分享码：'+r.code));
+}
+async function loadCodeUI(){
+  const inp=document.getElementById('shareCode');
+  let code=(inp&&inp.value||'').trim().replace(/[^0-9A-Za-z]/g,'');
+  if(!code) return toast('请输入分享代码');
+  if(SHORT_RE.test(code) && !SHARE_API){
+    return toast('❌ 6 位短码需要分享服务；本站是纯静态托管，请改用「复制分享链接」或自包含长码');
+  }
+  if(SHORT_RE.test(code) && SHARE_API){          // 6 位短码 → 找分享服务
+    let src=null;
+    try{
+      const r=await fetch(SHARE_API+'/'+code);
+      if(r.ok){ const j=await r.json(); src=j.code_src||null; }
+      else if(r.status===404){ const l=shares()[code]; if(l&&l.long) src=l.long; else return toast('❌ 找不到该分享码'); }
+      else return toast('❌ 分享服务异常（'+r.status+'）');
+    }catch(e){ const l=shares()[code]; if(l&&l.long) src=l.long; else return toast('❌ 连不上分享服务'); }
+    if(!src) return toast('❌ 该分享码内容不完整');
+    code=src;
+  }
+  const err=applyCode(code);
+  if(err) return toast('❌ '+err);
+  toast('✅ 已载入配装');
+}
+/* ---------- 分享图（canvas） ---------- */
+function roundRect(ctx,X,Y,w,h,r){ ctx.beginPath(); ctx.moveTo(X+r,Y); ctx.arcTo(X+w,Y,X+w,Y+h,r); ctx.arcTo(X+w,Y+h,X,Y+h,r); ctx.arcTo(X,Y+h,X,Y,r); ctx.arcTo(X,Y,X+w,Y,r); ctx.closePath(); }
+function clipT(ctx,t,w){ let s=t; while(ctx.measureText(s).width>w&&s.length>2) s=s.slice(0,-2); return s===t?t:s+'…'; }
+async function exportPNG(){
+  if(!KEY.some(k=>S[k]&&S[k].id)) return toast('还没装任何装备');
+  const sh=await makeShare(); const code=sh.code; const longCode=sh.long||sh.code;   // 短码 + 自包含长码（兜底）
+  const W=1240, M=36, pad=16, ch=176, head=128;
+  const cw=Math.floor((W-M*2-pad*2)/3);
+  const H=head+3*(ch+pad)+94;   // 底部三行：统计 / 短码 / 长码兜底
+  // 预加载图标（同源）
+  const imgs={};
+  await Promise.all(KEY.filter(k=>S[k]&&S[k].id).map(k=>new Promise(res=>{
+    const im=new Image(); im.onload=()=>res(); im.onerror=()=>res(); im.src=item(S[k].id).icon; imgs[k]=im; })));
+  const c=document.createElement('canvas'); const dpr=2; c.width=W*dpr; c.height=H*dpr;
+  const x=c.getContext('2d'); x.scale(dpr,dpr);
+  x.fillStyle='#12100e'; x.fillRect(0,0,W,H);
+  x.fillStyle='#6fd3ff'; x.font='bold 26px "Noto Sans SC",sans-serif'; x.fillText('MCD2 配装', M, 52);
+  x.fillStyle='#efe6d8'; x.font='16px "Noto Sans SC",sans-serif';
+  x.fillText(clipT(x,document.getElementById('name').value||'未命名配装',W-M*2-360), M, 84);
+  x.fillStyle='#a99f92'; x.font='12px "Noto Sans SC",sans-serif';
+  x.fillText('本地图鉴档案 · 生成于 '+new Date().toLocaleString('zh-CN'), M, 106);
+  KEY.forEach((k,i)=>{
+    const col=i%3, row=(i/3)|0, X=M+col*(cw+pad), Y=head+row*(ch+pad);
+    x.fillStyle='#1e1b18'; x.strokeStyle='#3a3430'; roundRect(x,X,Y,cw,ch,10); x.fill(); x.stroke();
+    const st=S[k];
+    if(!st||!st.id){ x.fillStyle='#5b554d'; x.font='14px "Noto Sans SC",sans-serif'; x.fillText(SLOT_LABEL[KIND[k]]+'：空',X+14,Y+ch/2); return; }
+    const it=item(st.id);
+    try{ if(imgs[k]&&imgs[k].width) x.drawImage(imgs[k],X+12,Y+16,46,46); }catch(e){}
+    const tx=X+68, mw=cw-82;
+    x.fillStyle='#efe6d8'; x.font='bold 14px "Noto Sans SC",sans-serif'; x.fillText(clipT(x,it.n,mw),tx,Y+26);
+    x.fillStyle='#a99f92'; x.font='11px "Noto Sans SC",sans-serif';
+    x.fillText(clipT(x,(SLOT_LABEL[it.slot]||'')+(it.u?' ・ 独特':'')+((it.el&&it.el.length)?' ・ '+it.el.join('/'):''),mw),tx,Y+44);
+    x.strokeStyle='#332d28'; x.beginPath(); x.moveTo(X+12,Y+60); x.lineTo(X+cw-12,Y+60); x.stroke();
+    // 逐行列出：独特固定 / 已选词条 1-3 / 附魔（游戏内效果原文）
+    let ly=Y+78;
+    const line=(txt,color,font)=>{ x.fillStyle=color; x.font=font||'11.5px "Noto Sans SC",sans-serif'; x.fillText(clipT(x,txt,mw),tx,ly); ly+=17; };
+    (it.fx||[]).forEach(f=>line('◆ '+f.desc,'#c9a7ff'));
+    (st.aff||[]).forEach((a,ai)=>{ if(!a||!a.base) return;
+      a.tier=maxTier(affDef(a.base)); line('词条'+(ai+1)+'：'+activeDesc(a.base,'aff',a.tier),'#ffd75e'); });
+    if(!(st.aff||[]).some(a=>a&&a.base)) line('词条：未选择','#5b554d');
+    if(st.ench&&st.ench.base){ st.ench.tier=maxTier(enchDef(st.ench.base));
+      line('附魔：'+activeDesc(st.ench.base,'ench',st.ench.tier),'#7fd4ff'); }
+  });
+  const s=collectStats();
+  const fit=(txt,style,base)=>{ let fs=base; x.font=fs+'px "Noto Sans SC",sans-serif';
+    while(x.measureText(txt).width>W-M*2 && fs>8){ fs--; x.font=fs+'px "Noto Sans SC",sans-serif'; }
+    x.fillStyle=style; return fs; };
+  x.fillStyle='#a99f92'; x.font='12px "Noto Sans SC",sans-serif';
+  x.fillText(`已装备 ${s.slots}/9 ・ 词条 ${s.nAff} ・ 附魔 ${s.nEnch} ・ 面值仅供参考，非游戏最终伤害公式`,M,H-66);
+  if(sh.short){
+    x.fillStyle='#8fe1b0'; x.font='bold 13px "Noto Sans SC",sans-serif';
+    x.fillText('分享码：'+code,M,H-44);
+    x.fillStyle='#6b645c'; x.font='11px "Noto Sans SC",sans-serif';
+    x.fillText('（配装器输入此码即可载入）',M+16+x.measureText('分享码：'+code).width,H-44);
+    const t1='长码（分享服务不可用时手动载入）：'+longCode;
+    fit(t1,'#c9c2b6',11); x.fillText(t1,M,H-22);
+  }else{
+    const t2='分享码（自包含长码，服务不可用也能用）：'+longCode;
+    fit(t2,'#8fe1b0',11); x.fillText(t2,M,H-22);
+  }
+  try{ c.toBlob(b=>download(b,(document.getElementById('name').value||'loadout')+'.png')); }
+  catch(e){ toast('本地双击模式下浏览器禁止导出图片（canvas 被跨域保护），请用 HTTP 打开再导出'); }
+  toast('分享代码：'+code);
+}
+function download(blob,fn){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fn; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+
+function openM(id){document.getElementById(id).classList.add('on');}
+function closeM(id){document.getElementById(id).classList.remove('on');}
+/* ---------- 启动（必须放在所有 const 声明之后：data.js 是同步载入） ---------- */
+if(window.MCD2_DATA){ boot(window.MCD2_DATA); setTimeout(applyHashCode,60); }
+else { fetch('data.json').then(r=>r.json()).then(d=>{ boot(d); setTimeout(applyHashCode,60); }).catch(()=>{
+  document.body.insertAdjacentHTML('afterbegin','<div style="max-width:900px;margin:20px auto;padding:14px;border:1px solid #7a3b2e;background:#2a1a16;color:#ffb59e;border-radius:10px">⚠️ 数据载入失败：请确认与本页同目录存在 <b>data.js</b>（本地双击用）或通过 HTTP 访问（可用 data.json）。</div>');
+}); }
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeM('mItem'); if(openRow){openRow=null;drawAll();} }});
+// 点空白处收起行内选项
+document.addEventListener('click',()=>{ if(openRow){ openRow=null; drawAll(); } });
+</script>
+</body>
+</html>
