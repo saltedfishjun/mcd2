@@ -9,6 +9,7 @@
 - **改为传统流程**：持久克隆目录（`虾/发布/mcd2-gitea`、`.../mcd2-github`）→ 用新内容整体替换工作区 → `git add -A` → **有变化才 `commit`** → **普通 `push`（无 force）**，远端呈现逐条历史（幂等：内容不变则跳过）
 - **统一提交身份**为 `管家 <salted.fish.jun@gmail.com>`（提交挂到账号）
 - 修正图鉴容器名：`mcd2-atlas` → `minecraft-atlas`（项目归一后改名）
+- 修复 Gitea「Git 钩子似乎已损坏」提示：`gitea admin regenerate hooks` 补回缺失的 `.d/gitea` 委托脚本后，推送刷新分支元数据
 
 ## 2026-10-05 — 配装器上线与全面打磨
 
