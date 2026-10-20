@@ -76,6 +76,15 @@
  .soulpill b{color:var(--ok)}
  h2{font-size:15px;margin:16px 0 8px;color:var(--acc)}
  .row{display:grid;gap:8px}
+ .tal-sum{cursor:pointer;list-style:none;border:none;padding:0;margin:8px 0 6px;font-size:12.5px;font-weight:700}
+ .tal-sum::-webkit-details-marker{display:none}
+ .tal-sum::before{content:"▸ ";color:#7fd4ff}
+ .tal-wrap[open] .tal-sum::before{content:"▾ ";}
+ .tal-eff{color:#a99f92;font-size:11px;line-height:1.35;margin-top:1px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ .sec-ench>summary{cursor:pointer;list-style:none}
+ .sec-ench>summary::-webkit-details-marker{display:none}
+ .sec-ench>summary::before{content:"▸ ";color:#7fd4ff}
+ .sec-ench[open]>summary::before{content:"▾ ";}
  .tal-list{display:flex;flex-direction:column;gap:6px}
  .tal-list .slot{padding:6px 8px}
  .r2{grid-template-columns:1fr 1fr} .r3{grid-template-columns:repeat(3,1fr)} .r4{grid-template-columns:repeat(4,1fr)}
@@ -648,7 +657,7 @@ function draw(k){
   }
   el.className='slot filled'+(openRow&&openRow.k===k?' zopen':'');   // 浮层展开时整卡提升层级
   el.innerHTML=`<div class="rm" onclick="removeSlot(event,'${k}')">✕</div>
-    <div class="hd" onclick="pickFor('${k}')" title="点此更换装备"><img src="${it.icon}" loading="lazy"><div style="min-width:0"><div class="nm">${esc(it.n)}</div>
+    <div class="hd" onclick="pickFor('${k}')" title="点此更换装备"><img src="${it.icon}" loading="lazy"><div style="min-width:0"><div class="nm">${esc(it.n)}</div>${it.slot==='talisman'?'<div class="tal-eff">'+esc((it.fx&&it.fx[0]&&it.fx[0].desc)||'效果未收录')+'</div>':''}
     <div class="cat">${it.u?'<span class="badge u">独特</span> ':''}${(it.el||[]).join('/')||''}${it.slot==='artifact'&&it.cost!=null?' ・ 灵魂 '+it.cost:''}</div></div></div>
     ${rows}`;
   (function(){
@@ -750,13 +759,13 @@ function renderStats(){
   h+=`</div>`;
   // ── 大项一·补：法器（3 件，展示最高阶效果）
 
-  h += '<div class="tal-wrap"><div class="sg-h" style="margin:8px 0 6px"><span>护符</span></div><div class="tal-list"><div class="slot" data-slot="tal0"></div><div class="slot" data-slot="tal1"></div><div class="slot" data-slot="tal2"></div></div></div>';
+  h += '<details class="tal-wrap" open><summary class="tal-sum"><span>护符</span></summary><div class="tal-list"><div class="slot" data-slot="tal0"></div><div class="slot" data-slot="tal1"></div><div class="slot" data-slot="tal2"></div></div></details>';
   // ── 大项二：附魔（单独显示，件件不同/不成类，故不合计）
-  h+=`<div class="sec-ench"><div class="bighead" style="margin:0 0 4px">附魔 <span class="tagline">(${s.ench.length})</span></div>`;
+  h+=`<details class="sec-ench"><summary class="bighead" style="margin:0">附魔 <span class="tagline">(${s.ench.length})</span></summary>`;
   h+= s.ench.length
      ? s.ench.map(e=>`<div class="sg-i">✧ ${hlPct(e.d)}<div class="tagline">— ${e.item}</div></div>`).join('')
      : `<div class="tagline">（未上附魔）</div>`;
-  h+=`</div>`;
+  h+=`</details>`;
 
   document.getElementById('stats').innerHTML=h;
   ['tal0','tal1','tal2'].forEach(function(k){ draw(k); });
