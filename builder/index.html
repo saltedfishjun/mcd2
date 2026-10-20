@@ -545,19 +545,9 @@ function renderList(){
     const it=list[idx]; if(!it) return;
     const d=dropShort(it.id); if(!d) return;
     const box=el.lastElementChild; if(!box) return;
-    const parts=d.split(" · ");
-    const areas=(parts[0]||"").split(" / ").filter(Boolean);
-    const boss=parts.slice(1).join(" · ");
-    areas.forEach(function(a){
-      const t=document.createElement("div"); t.className="t drop";
-      t.style.color="#9ad3a0"; t.style.fontSize="11.5px"; t.style.lineHeight="1.5";
-      t.textContent="📍 区域：" + a; box.appendChild(t);
-    });
-    if(boss){
-      const t2=document.createElement("div"); t2.className="t drop";
-      t2.style.color="#e0c58a"; t2.style.fontSize="11.5px"; t2.style.lineHeight="1.5";
-      t2.textContent="⚔ 来源：" + boss; box.appendChild(t2);
-    }
+    const t=document.createElement("div"); t.className="t drop";
+    t.style.color="#9ad3a0"; t.textContent="📍 掉落：" + d;
+    box.appendChild(t);
   });
 }
 function choose(id){
@@ -660,8 +650,14 @@ function draw(k){
   (function(){
     const ds=dropShort(it.id); if(!ds) return;
     const dv=document.createElement('div');
-    dv.style.color='#9ad3a0'; dv.style.marginLeft='auto'; dv.style.textAlign='right'; dv.style.fontSize='10.5px'; dv.style.lineHeight='1.3'; dv.style.maxWidth='46%'; dv.style.whiteSpace='nowrap'; dv.style.overflow='hidden'; dv.style.textOverflow='ellipsis'; dv.style.flex='0 0 auto'; dv.style.paddingLeft='8px';
-    dv.textContent='📍 '+ds; dv.title='掉落：'+ds;
+    dv.style.color='#9ad3a0'; dv.style.marginLeft='auto'; dv.style.textAlign='right'; dv.style.fontSize='10.5px'; dv.style.lineHeight='1.5'; dv.style.maxWidth='52%'; dv.style.flex='0 0 auto'; dv.style.paddingLeft='8px';
+    dv.textContent='';
+    const parts=ds.split(' · ');
+    const areas=(parts[0]||'').split(' / ').filter(Boolean);
+    const boss=parts.slice(1).join(' · ');
+    areas.forEach(function(a){ const l=document.createElement('div'); l.textContent='📍 '+a; dv.appendChild(l); });
+    if(boss){ const l=document.createElement('div'); l.style.color='#e0c58a'; l.textContent='⚔ '+boss; dv.appendChild(l); }
+    dv.title='掉落：'+ds;
     const hdEl=el.querySelector('.hd');
     if(hdEl) hdEl.appendChild(dv);
   })();
@@ -707,7 +703,7 @@ function collectStats(){
   let nAff=0,nEnch=0,slots=0;
   const add=(text,label,src)=>{ const f=findSub(text); if(!f) return; const p=pctNum(text); if(!p) return;
     const c=sums[f.cat]||(sums[f.cat]={}); const s=c[f.sub]||(c[f.sub]={v:0,n:0,src:[]});
-    if(f.cat==='冷却缩减'){ s.rem=(s.rem===undefined?1:s.rem)*(1-p/100); s.v=Math.round((1-s.rem)*1000)/10; } else { s.v+=p; }
+    if(f.cat==='冷却缩减'){ s.sum=(s.sum||0)+p/100; s.v=Math.round((1-Math.exp(-1.4055*s.sum))*1000)/10; } else { s.v+=p; }
     s.n++; s.src.push({label:label||'',v:p,src:src||'',text:text||''}); };
   KEY.forEach(k=>{ const st=S[k]; if(!st||!st.id) return; const it=item(st.id); if(!it) return; slots++;
     (it.fx||[]).forEach(f=>add(f.desc, '◆'+f.name, it.n));                        // 独特固定词条
