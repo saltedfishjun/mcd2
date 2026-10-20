@@ -76,7 +76,8 @@
  .soulpill b{color:var(--ok)}
  h2{font-size:15px;margin:16px 0 8px;color:var(--acc)}
  .row{display:grid;gap:8px}
- .tal-sum{cursor:pointer;list-style:none;border:none;padding:0;margin:8px 0 6px;font-size:12.5px;font-weight:700}
+ .matchline{color:#9ad3a0;font-size:11.5px;margin-top:3px;line-height:1.45}
+.tal-sum{cursor:pointer;list-style:none;border:none;padding:0;margin:8px 0 6px;font-size:12.5px;font-weight:700}
  .tal-sum::-webkit-details-marker{display:none}
  .tal-sum::before{content:"▸ ";color:#7fd4ff}
  .tal-wrap[open] .tal-sum::before{content:"▾ ";}
@@ -563,18 +564,38 @@ function saveShowAff(){ try{ localStorage.setItem('mcd2showaff', document.getEle
 function showAff(){ const e=document.getElementById('showAff'); return e?e.checked:false; }
 // 该装备在「当前推荐方向」下适配的可选词条（取得分最高的几条）
 function affBadges(it){
-  const d=curDir(), th=(theme().el||[]);
-  const offElem=n=>th.length&&!th.includes('物理')&&/法师/.test(n)&&!th.some(e=>n.includes(e));
-  return (it.pool||[]).map(b=>{ const def=affDef(b); const t=tierDesc(def,maxTier(def));
-      return {n:def.name, t:t, v:pctNum(t), s:effScore(t,d)}; })
-    .filter(x=>x.s>0&&!offElem(x.n)).sort((a,b)=>b.s-a.s).slice(0,4)
-    .map(x=>`<span class="pill2">${hlPct((x.t||'').replace(/。\s*$/,''))}</span>`).join('');
+  const qEl=document.getElementById('q');
+  const q=qEl?String(qEl.value||'').trim().toLowerCase():'';
+  const rows=(it.pool||[]).map(function(b){
+    const def=affDef(b); const t=tierDesc(def,maxTier(def));
+    const nm=(def&&def.name)||'';
+    return {t:t, s:affixValue(t,it.slot), hit:!!q&&(nm.toLowerCase().indexOf(q)>=0||String(t).toLowerCase().indexOf(q)>=0)};
+  });
+  const hits=rows.filter(function(x){ return x.hit; });
+  const use=(q&&hits.length)?hits:(q?[]:rows);
+  return use.filter(function(x){ return x.s>0||x.hit; }).sort(function(a,b){ return b.s-a.s; }).slice(0,4)
+    .map(function(x){ return '<span class="pill2">'+hlPct((x.t||'').replace(/。$/,''))+'</span>'; }).join('');
+}
+function matchLine(x,q){
+  const hits=[];
+  (x.pool||[]).forEach(function(b){ const d=affDef(b); if(!d) return; const t=tierDesc(d,maxTier(d));
+    if(String(d.name||'').toLowerCase().indexOf(q)>=0 || String(t).toLowerCase().indexOf(q)>=0) hits.push(t); });
+  (x.fx||[]).forEach(function(f){ if(String(f.desc||'').toLowerCase().indexOf(q)>=0) hits.push(f.desc); });
+  if(!hits.length) return '';
+  return '<div class="matchline">匹配：' + hits.slice(0,2).map(function(t){ return hlPct(String(t).replace(/。$/,'')); }).join(' / ') + '</div>';
+}
+function itemSearchName(x){
+  const parts=[x.n||'', x.e||'', (x.el||[]).join(' '), x.cat||''];
+  (x.fx||[]).forEach(function(f){ parts.push(f.name||''); });
+  (x.pool||[]).forEach(function(b){ const d=affDef(b); if(d) parts.push(d.name||''); });
+
+  return parts.join(' ').toLowerCase();
 }
 function itemSearchText(x){
   const parts=[x.n||'', x.e||'', (x.el||[]).join(' '), x.cat||''];
   (x.fx||[]).forEach(function(f){ parts.push(f.name||'', f.desc||''); });
   (x.pool||[]).forEach(function(b){ const d=affDef(b); if(d){ parts.push(d.name||'', d.desc||''); (d.tiers||[]).forEach(function(t){ parts.push(t.desc||''); }); } });
-  (x.ench||[]).forEach(function(b){ const d=enchDef(b); if(d){ parts.push(d.name||'', d.desc||''); (d.tiers||[]).forEach(function(t){ parts.push(t.desc||''); }); } });
+
   return parts.join(' ').toLowerCase();
 }
 function renderList(){
@@ -585,8 +606,11 @@ function renderList(){
   const fe=document.getElementById('fElem').value;
   let list=DB.items.filter(x=>x.slot===slotType)
     .filter(x=>!onlyU||x.u).filter(x=>!recOnly||isRec(x))
-    .filter(x=>!fe||(x.el||[]).includes(fe))
-    .filter(x=>!q||itemSearchText(x).includes(q));
+    .filter(x=>!fe||(x.el||[]).includes(fe));
+  if(q){
+    const byName=list.filter(function(x){ return itemSearchName(x).includes(q); });
+    list = byName.length ? byName : list.filter(function(x){ return itemSearchText(x).includes(q); });
+  }
   list.forEach(x=>x._s=scoreItem(x));
   list.sort((a,b)=>b._s-a._s||a.n.localeCompare(b.n,'zh'));
   const dl=curDir()==='out'?'输出向':(curDir()==='def'?'生存向':'综合向');
@@ -596,7 +620,7 @@ function renderList(){
       <div style="min-width:0;flex:1"><div class="n">${x.n} ${x.u?'<span class="badge u">独特</span>':''}${x._s>0?' <span class="badge r">推荐 '+x._s+'</span>':''}${elemFit(x)&&elemMode()==='attr'?' <span class="badge e">属性契合</span>':''}</div>
       <div class="t">${(x.el||[]).join('/')||'-'} ・ 词条${x.pool.length} 附魔${x.ench.length}${x.slot==='artifact'&&x.cost!=null?' ・ 灵魂'+x.cost:''}</div>
       ${x.u&&x.fx&&x.fx.length?`<div class="fxline">◆ ${x.fx.map(f=>hlPct(f.desc)).join(' / ')}</div>`:''}
-      ${showAff()&&x.pool&&x.pool.length?`<div class="affline">${affBadges(x)}</div>`:''}</div>
+      ${showAff()&&x.pool&&x.pool.length?`<div class="affline">${affBadges(x)}</div>`:''}${q?matchLine(x,q):''}</div>
     </div>`).join('')||'<div class="tagline">没有匹配的装备</div>';
   Array.prototype.forEach.call(document.querySelectorAll("#ilist .it"), function(el, idx){
     const it=list[idx]; if(!it) return;
