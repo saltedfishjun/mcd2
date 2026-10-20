@@ -76,7 +76,8 @@
  .soulpill b{color:var(--ok)}
  h2{font-size:15px;margin:16px 0 8px;color:var(--acc)}
  .row{display:grid;gap:8px}
- .matchline{color:#9ad3a0;font-size:11.5px;margin-top:3px;line-height:1.45}
+ .est{font-size:11px;color:#7fd4ff;opacity:.9;margin-left:4px}
+.matchline{color:#9ad3a0;font-size:11.5px;margin-top:3px;line-height:1.45}
 .tal-sum{cursor:pointer;list-style:none;border:none;padding:0;margin:8px 0 6px;font-size:12.5px;font-weight:700}
  .tal-sum::-webkit-details-marker{display:none}
  .tal-sum::before{content:"▸ ";color:#7fd4ff}
@@ -810,9 +811,10 @@ function renderStats(){
   // ── 大项一：词条（大类 -> 小类，两级合计）
   let any=false;
   const rowHTML=(name,src,v,n)=>{
-    return `<details class="sgrow"><summary><span class="sgn">${name}</span>`+
-           `<span class="v">+${v}%</span> <span class="tagline">(${n} 条)</span></summary>`+
-           `<div class="sgdet">`+src.map(z=>`<div class="sg-i">${hlPct(z.text||z.label)} <span class="tagline">— ${esc(z.src)}</span></div>`).join('')+`</div></details>`;
+    const est=(name==='翻滚冷却')?(' <span class="est">≈'+(2.5*(1-v/100)).toFixed(2)+'s 预估</span>'):'';
+    return '<details class="sgrow"><summary><span class="sgn">'+name+'</span>'+
+           '<span class="v">+'+v+'%</span> <span class="tagline">('+n+' 条)</span>'+est+'</summary>'+
+           '<div class="sgdet">'+src.map(function(z){ return '<div class="sg-i">'+hlPct(z.text||z.label)+' <span class="tagline">— '+esc(z.src)+'</span></div>'; }).join('')+'</div></details>';
   };
   [['输出','out'],['生存','def'],['功能','util']].forEach(([label,kind])=>{
     const cats=CATS.filter(c=>c[1]===kind && s.sums[c[0]]);
