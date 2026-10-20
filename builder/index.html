@@ -76,6 +76,8 @@
  .soulpill b{color:var(--ok)}
  h2{font-size:15px;margin:16px 0 8px;color:var(--acc)}
  .row{display:grid;gap:8px}
+ .tal-list{display:flex;flex-direction:column;gap:6px}
+ .tal-list .slot{padding:6px 8px}
  .r2{grid-template-columns:1fr 1fr} .r3{grid-template-columns:repeat(3,1fr)} .r4{grid-template-columns:repeat(4,1fr)}
  @media(max-width:700px){.r4{grid-template-columns:1fr 1fr}.r3{grid-template-columns:1fr}}
  .slot{background:var(--card);border:1px dashed var(--line);border-radius:10px;min-height:78px;padding:9px;cursor:pointer;position:relative;transition:.15s;z-index:1}
@@ -345,10 +347,7 @@
       <div class="row r3">
         <div class="slot" data-slot="art0"></div><div class="slot" data-slot="art1"></div><div class="slot" data-slot="art2"></div>
       </div>
-      <h2>护符</h2>
-      <div class="row r3">
-        <div class="slot" data-slot="tal0"></div><div class="slot" data-slot="tal1"></div><div class="slot" data-slot="tal2"></div>
-      </div>
+
     </div>
 
     <div class="colmid">
@@ -632,7 +631,8 @@ function draw(k){
   const isOpen=(kind,i)=>!!(openRow&&openRow.k===k&&openRow.kind===kind&&openRow.i===i);
   let rows='';
   if(it.u&&it.fx.length) rows+=`<div class="sl fx"><span class="k">◆独特</span>${esc(it.fx.map(f=>f.desc).join(' / '))}</div>`;
-  for(let i=0;i<nAff;i++){
+  const nRows=(it.pool&&it.pool.length)?nAff:0;
+  for(let i=0;i<nRows;i++){
     const a=(st.aff||[])[i]||{}; const d=a.base?activeDesc(a.base,'aff',a.tier):'';
     const op=isOpen('aff',i);
     let inner=`<span class="k">词条${i+1}${a.tier?' ('+a.tier+')':''}</span>`+
@@ -749,24 +749,17 @@ function renderStats(){
   if(!any) h+=`<div class="tagline">（还没有可统计的词条）</div>`;
   h+=`</div>`;
   // ── 大项一·补：法器（3 件，展示最高阶效果）
-  var talsHtml = '<div class="sec-ench"><div class="bighead" style="margin:0 0 4px">护符 <span class="tagline">(' + s.tals.length + ')</span></div>';
-  if(s.tals.length){
-    talsHtml += s.tals.map(function(a){
-      var sub = a.lines.length ? '<div class="tagline">' + a.lines.map(hlPct).join(' / ') + '</div>' : '<div class="tagline">效果未收录</div>';
-      return '<div class="sg-i">◇ ' + esc(a.n) + sub + '</div>';
-    }).join('');
-  } else {
-    talsHtml += '<div class="tagline">（未装备护符）</div>';
-  }
-  talsHtml += '</div>';
-  h += talsHtml;
+
+  h += '<div class="tal-wrap"><div class="sg-h" style="margin:8px 0 6px"><span>护符</span></div><div class="tal-list"><div class="slot" data-slot="tal0"></div><div class="slot" data-slot="tal1"></div><div class="slot" data-slot="tal2"></div></div></div>';
   // ── 大项二：附魔（单独显示，件件不同/不成类，故不合计）
   h+=`<div class="sec-ench"><div class="bighead" style="margin:0 0 4px">附魔 <span class="tagline">(${s.ench.length})</span></div>`;
   h+= s.ench.length
      ? s.ench.map(e=>`<div class="sg-i">✧ ${hlPct(e.d)}<div class="tagline">— ${e.item}</div></div>`).join('')
      : `<div class="tagline">（未上附魔）</div>`;
   h+=`</div>`;
+
   document.getElementById('stats').innerHTML=h;
+  ['tal0','tal1','tal2'].forEach(function(k){ draw(k); });
 }
 // 灵魂容量自动计算：基础容量 + 配装里所有「灵魂容量」类加成（不重复计同一加成）
 function soulCapacity(){
