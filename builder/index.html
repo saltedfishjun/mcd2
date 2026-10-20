@@ -330,6 +330,7 @@
     <input id="shareCode" type="text" placeholder="分享代码（6 位，如 A7K2Q9）" style="width:180px;letter-spacing:1.5px;text-transform:uppercase" onkeydown="if(event.key==='Enter')loadCodeUI()">
     <button onclick="loadCodeUI()">载入代码</button>
     <button onclick="copyCodeUI()">生成/复制代码</button>
+    <button onclick="shareLink()">复制分享链接</button>
     <button onclick="resetAll()">清空</button>
   </div>
 
@@ -930,6 +931,26 @@ async function makeShare(){
   saveShareCode(long,long);
   return {code:long,short:false,long};
 }
+function shareLink(){
+  if(!KEY.some(function(k){ return S[k] && S[k].id; })) return toast('还没装任何装备');
+  const code=buildCode();
+  const url=location.origin+location.pathname+'?c='+encodeURIComponent(code);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){ toast('✅ 分享链接已复制：对方打开即载入整套配装'); },
+                                           function(){ toast(url); });
+  } else { toast(url); }
+  return url;
+}
+function loadFromUrl(){
+  try{
+    const p=new URLSearchParams(location.search);
+    const c=p.get('c');
+    if(!c) return;
+    const err=applyCode(c);
+    if(err) toast('❌ 链接载入失败：'+err); else toast('✅ 已从分享链接载入配装');
+  }catch(e){}
+}
+window.addEventListener('load', function(){ setTimeout(loadFromUrl, 400); });
 async function copyCodeUI(){
   if(!KEY.some(k=>S[k]&&S[k].id)) return toast('还没装任何装备');
   const r=await makeShare();
@@ -967,7 +988,8 @@ async function exportPNG(){
   const sh=await makeShare(); const code=sh.code; const longCode=sh.long||sh.code;   // 短码 + 自包含长码（兜底）
   const W=1240, M=36, pad=16, ch=200, head=128;
   const cw=Math.floor((W-M*2-pad*2)/3);
-  const H=head+3*(ch+pad)+94;   // 底部三行：统计 / 短码 / 长码兜底
+  const ROWS=Math.ceil(KEY.length/3);
+  const H=head+ROWS*(ch+pad)+94;   // 底部三行：统计 / 短码 / 长码兜底
   // 预加载图标（同源）
   const imgs={};
   await Promise.all(KEY.filter(k=>S[k]&&S[k].id).map(k=>new Promise(res=>{
@@ -1008,7 +1030,7 @@ async function exportPNG(){
     while(x.measureText(txt).width>W-M*2 && fs>8){ fs--; x.font=fs+'px "Noto Sans SC",sans-serif'; }
     x.fillStyle=style; return fs; };
   x.fillStyle='#a99f92'; x.font='12px "Noto Sans SC",sans-serif';
-  x.fillText(`已装备 ${s.slots}/9 ・ 词条 ${s.nAff} ・ 附魔 ${s.nEnch} ・ 面值仅供参考，非游戏最终伤害公式`,M,H-66);
+  x.fillText(`已装备 ${s.slots}/${KEY.length} ・ 词条 ${s.nAff} ・ 附魔 ${s.nEnch} ・ 面值仅供参考，非游戏最终伤害公式`,M,H-66);
   if(sh.short){
     x.fillStyle='#8fe1b0'; x.font='bold 13px "Noto Sans SC",sans-serif';
     x.fillText('分享码：'+code,M,H-44);
