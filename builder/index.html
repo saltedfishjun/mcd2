@@ -31,7 +31,7 @@
    /* 行基准改为内容高度（flex-basis:auto）且不允许收缩 → 文字换行变高时不会把内容挤出卡片；
       仍保留 grow:1 把多余高度分给各行，避免出现大缝隙 */
    .colmain>.row{flex:1 0 auto;min-height:78px}
-   .colmain>.row>.slot{display:flex;flex-direction:column;justify-content:center}
+   .colmain>.row>.slot{display:flex;flex-direction:column;justify-content:flex-start}
    .colmain>h2:first-child{margin-top:0}
  }
  .colmid{grid-area:M;align-self:stretch;display:flex;flex-direction:column;gap:12px;margin:0;min-height:0}
@@ -584,7 +584,7 @@ const hlPct=s=>esc(s).replace(/(\d+(?:\.\d+)?\s*%)/g,'<span class="v">$1</span>'
 function dropSrc(id){ return (window.DROP_SRC && window.DROP_SRC[id]) || null; }
 function dropShort(id){ const d=dropSrc(id); if(!d) return "";
   const area=(d.a||[]).slice(0,2).join(" / ");
-  const src=(d.s&&d.s[0])?d.s[0][0]:"";
+  const list=(d.s||[]).map(function(x){return x[0]}); const reSkip=/宝箱|LootActor|Chest|\.Final\./i; const reID=/LootActor|\.Final\.|Chest/i; let pick=(list.find(function(t){return !reSkip.test(t)})||list[0]||'').split('·')[0].trim(); const src=reID.test(pick)?'宝箱':pick;
   return [area, src].filter(Boolean).join(" · "); }
 function dropAll(id){ const d=dropSrc(id); if(!d) return [];
   return (d.s||[]).slice(0,3).map(function(x){ return x[0] + (x[2]>=0.01 ? " (" + (x[2]*100).toFixed(1) + "%)" : ""); }); }
@@ -633,6 +633,14 @@ function draw(k){
     <div class="hd" onclick="pickFor('${k}')" title="点此更换装备"><img src="${it.icon}" loading="lazy"><div style="min-width:0"><div class="nm">${esc(it.n)}</div>
     <div class="cat">${it.u?'<span class="badge u">独特</span> ':''}${(it.el||[]).join('/')||''}${it.slot==='artifact'&&it.cost!=null?' ・ 灵魂 '+it.cost:''}</div></div></div>
     ${rows}`;
+  (function(){
+    const ds=dropShort(it.id); if(!ds) return;
+    const dv=document.createElement('div');
+    dv.className='cat'; dv.style.color='#9ad3a0'; dv.style.margin='2px 0 4px';
+    dv.textContent='📍 掉落：'+ds;
+    const hdEl=el.querySelector('.hd');
+    if(hdEl && hdEl.nextSibling) el.insertBefore(dv, hdEl.nextSibling); else el.appendChild(dv);
+  })();
   el.onclick=null;
 }
 // 针对具体槽位更换装备（法器也能精确到 art0/1/2）
