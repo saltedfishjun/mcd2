@@ -461,7 +461,7 @@ function effScore(text,dir){
   else if(/灵魂/.test(text)) out=mainType()==='artifact'?1.0:0;          // 灵魂只在法器主用时算资源
   else if(/伤害/.test(text)) out=0.5;
   out*=typeWeight(text);                                                   // 与主武器不符的类别降权
-  if(elemHit) out*=elemMode()==='attr'?1.8:1;   // 属性口径：抬高所选属性的权重
+  if(elemHit) out*=elemMode()==='attr'?1.8:0.75;   // 通用：元素伤害是条件性收益，降权   // 属性口径：抬高所选属性的权重
   const def=/受到的伤害降低|伤害降低|生命值|恢复|治疗|回复|躲避|弹开|反刺|反弹|减伤|防护/.test(text)?1.0:0;
   if(dir==='out') return p*out;
   if(dir==='def') return p*def;
@@ -536,7 +536,7 @@ function renderList(){
   document.getElementById('ilist').innerHTML=list.map(x=>`
     <div class="it ${x._s>0?'rec':''}" onclick="choose('${x.id}')">
       <img src="${x.icon}" loading="lazy">
-      <div style="min-width:0;flex:1"><div class="n">${x.n} ${x.u?'<span class="badge u">独特</span>':''}${x._s>0?' <span class="badge r">推荐 '+x._s+'</span>':''}${elemFit(x)?' <span class="badge e">属性契合</span>':''}</div>
+      <div style="min-width:0;flex:1"><div class="n">${x.n} ${x.u?'<span class="badge u">独特</span>':''}${x._s>0?' <span class="badge r">推荐 '+x._s+'</span>':''}${elemFit(x)&&elemMode()==='attr'?' <span class="badge e">属性契合</span>':''}</div>
       <div class="t">${(x.el||[]).join('/')||'-'} ・ 词条${x.pool.length} 附魔${x.ench.length}${x.slot==='artifact'&&x.cost!=null?' ・ 灵魂'+x.cost:''}</div>
       ${x.u&&x.fx&&x.fx.length?`<div class="fxline">◆ ${x.fx.map(f=>hlPct(f.desc)).join(' / ')}</div>`:''}
       ${showAff()&&x.pool&&x.pool.length?`<div class="affline">${affBadges(x)}</div>`:''}</div>
@@ -650,7 +650,7 @@ function draw(k){
   (function(){
     const ds=dropShort(it.id); if(!ds) return;
     const dv=document.createElement('div');
-    dv.style.color='#9ad3a0'; dv.style.marginLeft='auto'; dv.style.textAlign='right'; dv.style.fontSize='10.5px'; dv.style.lineHeight='1.5'; dv.style.maxWidth='52%'; dv.style.flex='0 0 auto'; dv.style.paddingLeft='8px';
+    dv.style.color='#9ad3a0'; dv.style.marginLeft='auto'; dv.style.textAlign='left'; dv.style.fontSize='10.5px'; dv.style.lineHeight='1.5'; dv.style.maxWidth='48%'; dv.style.flex='0 0 auto'; dv.style.paddingLeft='8px'; dv.style.paddingRight='20px';
     dv.textContent='';
     const parts=ds.split(' · ');
     const areas=(parts[0]||'').split(' / ').filter(Boolean);
