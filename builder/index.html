@@ -376,7 +376,7 @@
   <div class="modal">
     <div class="mhead">
       <div class="t" id="mTitle">选择装备</div>
-      <input type="text" id="q" placeholder="搜索名称 / 英文名" oninput="renderList()">
+      <input type="text" id="q" placeholder="搜索名称 / 词条 / 效果" oninput="renderList()">
       <select id="fElem" onchange="renderList()"><option value="">全部元素</option></select>
       <label class="tagline" id="lblU"><input type="checkbox" id="onlyU" onchange="renderList()"> 只看独特</label>
       <label class="tagline"><input type="checkbox" id="showAff" onchange="saveShowAff()"> 显示适配词条</label>
@@ -570,6 +570,13 @@ function affBadges(it){
     .filter(x=>x.s>0&&!offElem(x.n)).sort((a,b)=>b.s-a.s).slice(0,4)
     .map(x=>`<span class="pill2">${hlPct((x.t||'').replace(/。\s*$/,''))}</span>`).join('');
 }
+function itemSearchText(x){
+  const parts=[x.n||'', x.e||'', (x.el||[]).join(' '), x.cat||''];
+  (x.fx||[]).forEach(function(f){ parts.push(f.name||'', f.desc||''); });
+  (x.pool||[]).forEach(function(b){ const d=affDef(b); if(d){ parts.push(d.name||'', d.desc||''); (d.tiers||[]).forEach(function(t){ parts.push(t.desc||''); }); } });
+  (x.ench||[]).forEach(function(b){ const d=enchDef(b); if(d){ parts.push(d.name||'', d.desc||''); (d.tiers||[]).forEach(function(t){ parts.push(t.desc||''); }); } });
+  return parts.join(' ').toLowerCase();
+}
 function renderList(){
   const slotType=curType;
   const q=document.getElementById('q').value.trim().toLowerCase();
@@ -579,7 +586,7 @@ function renderList(){
   let list=DB.items.filter(x=>x.slot===slotType)
     .filter(x=>!onlyU||x.u).filter(x=>!recOnly||isRec(x))
     .filter(x=>!fe||(x.el||[]).includes(fe))
-    .filter(x=>!q||x.n.toLowerCase().includes(q)||(x.e||'').toLowerCase().includes(q));
+    .filter(x=>!q||itemSearchText(x).includes(q));
   list.forEach(x=>x._s=scoreItem(x));
   list.sort((a,b)=>b._s-a._s||a.n.localeCompare(b.n,'zh'));
   const dl=curDir()==='out'?'输出向':(curDir()==='def'?'生存向':'综合向');
