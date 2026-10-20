@@ -314,8 +314,7 @@
     <span style="flex:1"></span>
     <button onclick="exportJSON()">导出 JSON</button>
     <button class="pri" onclick="exportPNG()">导出分享图</button>
-    <button onclick="copyLinkUI()">复制分享链接</button>
-    <input id="shareCode" type="text" placeholder="粘贴分享代码" style="width:200px;letter-spacing:.5px" onkeydown="if(event.key==='Enter')loadCodeUI()">
+    <input id="shareCode" type="text" placeholder="分享代码（6 位，如 A7K2Q9）" style="width:180px;letter-spacing:1.5px;text-transform:uppercase" onkeydown="if(event.key==='Enter')loadCodeUI()">
     <button onclick="loadCodeUI()">载入代码</button>
     <button onclick="copyCodeUI()">生成/复制代码</button>
     <button onclick="resetAll()">清空</button>
@@ -378,6 +377,7 @@
 
 <!-- 数据：优先用 data.js（用 script 标签载入，file:// 本地双击也能用）；否则回退 fetch data.json -->
 <script src="data.js"></script>
+<script src="drop-sources.js"></script>
 <script>
 // 2026-10-05 主人要求：删除职业分类，元素分类改为 灵魂/毒/电/冰/火/纯物理
 const SLOT_LABEL={melee:'近战武器',ranged:'远程武器',helm:'头盔',chest:'胸甲',legs:'护腿',boots:'靴子',artifact:'法器'};
@@ -527,6 +527,14 @@ function renderList(){
       ${x.u&&x.fx&&x.fx.length?`<div class="fxline">◆ ${x.fx.map(f=>hlPct(f.desc)).join(' / ')}</div>`:''}
       ${showAff()&&x.pool&&x.pool.length?`<div class="affline">${affBadges(x)}</div>`:''}</div>
     </div>`).join('')||'<div class="tagline">没有匹配的装备</div>';
+  Array.prototype.forEach.call(document.querySelectorAll("#ilist .it"), function(el, idx){
+    const it=list[idx]; if(!it) return;
+    const d=dropShort(it.id); if(!d) return;
+    const box=el.lastElementChild; if(!box) return;
+    const t=document.createElement("div"); t.className="t drop";
+    t.style.color="#9ad3a0"; t.textContent="📍 掉落：" + d;
+    box.appendChild(t);
+  });
 }
 function choose(id){
   const it=item(id);
@@ -573,6 +581,13 @@ function rowPick(k,kind,i,base,ev){
 }
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const hlPct=s=>esc(s).replace(/(\d+(?:\.\d+)?\s*%)/g,'<span class="v">$1</span>');
+function dropSrc(id){ return (window.DROP_SRC && window.DROP_SRC[id]) || null; }
+function dropShort(id){ const d=dropSrc(id); if(!d) return "";
+  const area=(d.a||[]).slice(0,2).join(" / ");
+  const src=(d.s&&d.s[0])?d.s[0][0]:"";
+  return [area, src].filter(Boolean).join(" · "); }
+function dropAll(id){ const d=dropSrc(id); if(!d) return [];
+  return (d.s||[]).slice(0,3).map(function(x){ return x[0] + (x[2]>=0.01 ? " (" + (x[2]*100).toFixed(1) + "%)" : ""); }); }
 // 词条只取最高阶
 function maxTier(d){ const ts=(d&&d.tiers)||[]; return ts.length?ts[ts.length-1].t:undefined; }
 // （原来的整卡编辑器/下拉已移除：词条与附魔改为行内展开）
@@ -847,41 +862,18 @@ function saveShareCode(short,long){
     slots:KEY.filter(k=>S[k]&&S[k].id).length, long:long||''};
   try{ localStorage.setItem('mcd2codes', JSON.stringify(db)); }catch(e){}
 }
-/* 部署配置：留空 = 纯静态模式（GitHub Pages / 本地双击）→ 分享用【自包含长码 + 分享链接】；
-   若自建了分享服务（形如 http://your-host/api/share），填入地址即可启用 6 位短码 */
-/* 分享服务：局域网内直连本机 /api/share；其它环境（GitHub Pages 等）走公网分享服务 → 同样给 6 位短码，且与内网版互通 */
-const PUBLIC_SHARE_API='https://share.xn--i8sx5zdlt.top/share';
-const SHARE_API=(window.MCD2_SHARE_API||
-  (location.hostname==='192.168.1.8'?'/api/share':PUBLIC_SHARE_API)).trim();
+const SHARE_API='/api/share';
 const SHORT_RE=/^[2-9A-HJ-NP-Z]{6}$/;   // 与后端字母表一致（去 0/1/I/O）
 // 生成分享码：优先走后端拿 6 位短码；服务不可用时回退为自包含长码
 async function makeShare(){
   const long=buildCode();
-  if(SHARE_API){ try{
+  try{
     const r=await fetch(SHARE_API,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({name:document.getElementById('name').value||'',code:long})});
     if(r.ok){ const j=await r.json(); if(j&&j.code){ saveShareCode(j.code,long); return {code:j.code,short:true,long}; } }
-  }catch(e){} }
+  }catch(e){}
   saveShareCode(long,long);
   return {code:long,short:false,long};
-}
-// 纯静态部署的推荐分享方式：整条链接自带配装（#bd=<代码>）
-function shareLink(){ return location.href.split('#')[0]+'#bd='+encodeURIComponent(buildCode()); }
-async function copyLinkUI(){
-  if(!KEY.some(k=>S[k]&&S[k].id)) return toast('还没装任何装备');
-  const url=shareLink();
-  const txt='分享链接（打开即自动载入该配装）：\n'+url;
-  navigator.clipboard?.writeText(txt).then(()=>toast('✅ 分享链接已复制，发给对方打开即可'),()=>prompt('复制下面的分享链接：',url));
-}
-// 打开带 #bd= 的链接时自动载入
-function applyHashCode(){
-  const m=(location.hash||'').match(/bd=([^&]+)/);
-  if(!m) return false;
-  let code=''; try{ code=decodeURIComponent(m[1]); }catch(e){ code=m[1]; }
-  const err=applyCode(code);
-  if(err){ toast('❌ 分享链接里的配装解析失败：'+err); return false; }
-  toast('✅ 已从分享链接载入配装');
-  return true;
 }
 async function copyCodeUI(){
   if(!KEY.some(k=>S[k]&&S[k].id)) return toast('还没装任何装备');
@@ -897,7 +889,7 @@ async function loadCodeUI(){
   if(SHORT_RE.test(code) && !SHARE_API){
     return toast('❌ 6 位短码需要分享服务；本站是纯静态托管，请改用「复制分享链接」或自包含长码');
   }
-  if(SHORT_RE.test(code) && SHARE_API){          // 6 位短码 → 找分享服务
+  if(SHORT_RE.test(code)){                       // 6 位短码 → 找分享服务
     let src=null;
     try{
       const r=await fetch(SHARE_API+'/'+code);
@@ -918,7 +910,7 @@ function clipT(ctx,t,w){ let s=t; while(ctx.measureText(s).width>w&&s.length>2) 
 async function exportPNG(){
   if(!KEY.some(k=>S[k]&&S[k].id)) return toast('还没装任何装备');
   const sh=await makeShare(); const code=sh.code; const longCode=sh.long||sh.code;   // 短码 + 自包含长码（兜底）
-  const W=1240, M=36, pad=16, ch=176, head=128;
+  const W=1240, M=36, pad=16, ch=200, head=128;
   const cw=Math.floor((W-M*2-pad*2)/3);
   const H=head+3*(ch+pad)+94;   // 底部三行：统计 / 短码 / 长码兜底
   // 预加载图标（同源）
@@ -954,6 +946,7 @@ async function exportPNG(){
     if(!(st.aff||[]).some(a=>a&&a.base)) line('词条：未选择','#5b554d');
     if(st.ench&&st.ench.base){ st.ench.tier=maxTier(enchDef(st.ench.base));
       line('附魔：'+activeDesc(st.ench.base,'ench',st.ench.tier),'#7fd4ff'); }
+    const ds=dropShort(st.id); if(ds) line("📍 " + ds, "#9ad3a0");
   });
   const s=collectStats();
   const fit=(txt,style,base)=>{ let fs=base; x.font=fs+'px "Noto Sans SC",sans-serif';
@@ -981,8 +974,8 @@ function download(blob,fn){ const a=document.createElement('a'); a.href=URL.crea
 function openM(id){document.getElementById(id).classList.add('on');}
 function closeM(id){document.getElementById(id).classList.remove('on');}
 /* ---------- 启动（必须放在所有 const 声明之后：data.js 是同步载入） ---------- */
-if(window.MCD2_DATA){ boot(window.MCD2_DATA); setTimeout(applyHashCode,60); }
-else { fetch('data.json').then(r=>r.json()).then(d=>{ boot(d); setTimeout(applyHashCode,60); }).catch(()=>{
+if(window.MCD2_DATA){ boot(window.MCD2_DATA); }
+else { fetch('data.json').then(r=>r.json()).then(boot).catch(()=>{
   document.body.insertAdjacentHTML('afterbegin','<div style="max-width:900px;margin:20px auto;padding:14px;border:1px solid #7a3b2e;background:#2a1a16;color:#ffb59e;border-radius:10px">⚠️ 数据载入失败：请确认与本页同目录存在 <b>data.js</b>（本地双击用）或通过 HTTP 访问（可用 data.json）。</div>');
 }); }
 
