@@ -490,22 +490,59 @@ function defScore(text){
   const hit=/受到的伤害降低|伤害降低|生命值|恢复|治疗|回复|躲避|弹开|反刺|反弹|减伤|防护|护甲/.test(text||'');
   return hit ? p : 0;
 }
+function affixCat(t){
+  const x=String(t||'');
+  if(/翻滚|冷却/.test(x)) return 'cd';
+  if(/暴击/.test(x)) return 'crit';
+  if(/攻击速度/.test(x)) return 'as';
+  if(/闪电|冰霜|火焰|毒素|灵魂攻击/.test(x)) return 'elem';
+  if(/对满血|对受伤|对主要目标|对次要目标/.test(x)) return 'target';
+  if(/受到的伤害|减伤|防护|护甲/.test(x)) return 'mit';
+  if(/生命值|恢复|治疗|回复/.test(x)) return 'hp';
+  if(/躲避|弹开|反刺|反弹/.test(x)) return 'dodge';
+  if(/灵魂/.test(x)) return 'soul';
+  if(/战利品|绿宝石|经验/.test(x)) return 'loot';
+  if(/移动速度|跳跃/.test(x)) return 'mob';
+  if(/击退/.test(x)) return 'knock';
+  if(/伤害/.test(x)) return 'dmg';
+  return 'other';
+}
+const CAT_W={dmg:1.0,crit:0.85,as:0.7,elem:0.8,target:0.5,cd:0.6,mit:0.85,hp:0.7,dodge:0.5,soul:0.4,loot:0.15,mob:0.3,knock:0.2,other:0.2};
+function slotWeight(slot,cat){
+  let w;
+  if(slot==='melee'||slot==='ranged'){ w=(cat==='mit'||cat==='hp'||cat==='dodge')?0.35:1.0; }
+  else if(slot==='artifact'){ w=(cat==='cd'||cat==='soul')?1.0:((cat==='dmg'||cat==='crit')?0.6:0.5); }
+  else if(slot==='talisman'){ w=0.5; }
+  else { w=(cat==='mit'||cat==='hp'||cat==='dodge')?1.0:((cat==='dmg'||cat==='crit'||cat==='as')?0.45:0.5); }
+  const off=(cat==='dmg'||cat==='crit'||cat==='as'||cat==='elem'||cat==='target');
+  const def=(cat==='mit'||cat==='hp'||cat==='dodge');
+  const d=curDir();
+  const dirW = d==='out' ? (off?1.0:(def?0.55:0.5))
+             : d==='def' ? (def?1.0:(off?0.5:0.6))
+             : (off?0.8:(def?0.8:0.7));
+  return w*dirW;
+}
+function affixValue(desc,slot){
+  const p=pctNum(desc); if(!p) return 0;
+  const cat=affixCat(desc);
+  let v=p*CAT_W[cat]*slotWeight(slot,cat);
+  if(cat==='elem'){
+    const t=theme();
+    const hit=t.length>0 && t.some(function(e){ return String(desc||'').indexOf(e)>=0; });
+    v *= (elemMode()==='attr' ? (hit?1.6:0.25) : 0.8);
+  }
+  return v;
+}
 function scoreItem(it){
   if(!it) return 0;
-  const d=curDir(), slots=it.u?2:3;
-  const isArmor=['helm','chest','legs','boots'].indexOf(it.slot)>=0;
-  const isArt=it.slot==='artifact';
-  const offs=[], defs=[];
-  (it.fx||[]).forEach(function(f){ offs.push(effScore(f.desc,d)*3); defs.push(defScore(f.desc)*3); });
-  (it.pool||[]).forEach(function(b){ const t=tierDesc(affDef(b),maxTier(affDef(b))); offs.push(effScore(t,d)); defs.push(defScore(t)); });
-  const top=function(arr){ return arr.slice().sort(function(x,y){return y-x}).slice(0,slots).reduce(function(x,y){return x+y},0); };
-  const off=top(offs), def=top(defs);
-  let wOff=1, wDef=0.25;
-  if(isArmor){ if(d==='def'){ wOff=0.25; wDef=1; } else if(d==='mix'){ wOff=0.6; wDef=0.6; } else { wOff=0.7; wDef=0.45; } }
-  if(isArt){ wOff=1; wDef=0.15; }
-  const base=off*wOff + def*wDef;
-  const m=elemFit(it)?(elemMode()==='attr'?1.3:1):1;
-  return Math.round(base*m*10)/10;
+  const slot=it.slot, slots=it.u?2:3;
+  const vals=[];
+  (it.fx||[]).forEach(function(f){ vals.push(affixValue(f.desc,slot)*1.2); });
+  (it.pool||[]).forEach(function(b){ const d=affDef(b); vals.push(affixValue(tierDesc(d,maxTier(d)),slot)); });
+  const top=vals.slice().sort(function(a,b){return b-a}).slice(0,slots).reduce(function(a,b){return a+b},0);
+  let m=1;
+  if(elemMode()==='attr' && elemFit(it)) m=1.25;
+  return Math.round(top*m*10)/10;
 }
 // 元素契合标记（与推荐分开，用于显示）
 function elemFit(it){ const t=theme(); return !(!t.el.length||t.el.includes('物理')) && (it.el||[]).some(e=>t.el.includes(e)); }
@@ -698,7 +735,7 @@ const CATS=[
  ['对特定目标','out',[['对满血敌人',/满血/],['对受伤敌人',/受伤敌人/],['对负面状态敌人',/受负面状态/],['对主要目标',/主要目标/],['对次要目标',/次要目标/]]],
  ['攻击速度','out',[['攻击速度',/攻击速度/]]],
  ['击退','out',[['击退',/击退/]]],
- ['武器/攻击伤害','out',[['近战攻击',/近战/],['远程攻击',/远程/],['通用/额外伤害',/攻击伤害|武器伤害|造成的伤害|伤害提高|额外造成/]]],
+ ['武器/攻击伤害','out',[['近战攻击',/近战/],['远程攻击',/远程/],['通用/额外伤害',/攻击伤害|武器伤害|造成的伤害|伤害提高|额外造成|伤害加成/]]],
  ['防护','def',[['伤害减免',/受到的伤害|减伤|防护/],['躲避/弹开',/躲避|弹开/],['反刺/反弹',/反刺|反弹/]]],
  ['生命','def',[['生命上限',/生命值/],['回复/治疗',/恢复|治疗|回复/]]],
  ['灵魂','util',[['灵魂',/灵魂/]]],
