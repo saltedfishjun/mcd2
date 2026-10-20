@@ -999,15 +999,15 @@ async function sharePost(payload){
   return null;
 }
 async function shareGet(code){
+  let last=null;
   for(let i=0;i<SHARE_APIS.length;i++){
     try{
       const r=await fetch(SHARE_APIS[i]+'/'+code);
-      if(r.ok||r.status===404) return r;
-      if(r.status===405||r.status===501) continue;
-      return r;
+      if(r.ok) return r;
+      last=r;
     }catch(e){}
   }
-  return null;
+  return last;
 }
 const SHORT_RE=/^[2-9A-HJ-NP-Z]{6}$/;   // 与后端字母表一致（去 0/1/I/O）
 // 生成分享码：优先走后端拿 6 位短码；服务不可用时回退为自包含长码
