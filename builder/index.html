@@ -892,7 +892,7 @@ function applyCode(code){
   const t=String(code||'').replace(/[^0-9A-Za-z]/g,'');
   if(t.slice(0,2)!=='M2') return '格式不对：应以 M2 开头';
   const body=t.slice(2), plen=body.length-1;
-  if(plen<7||plen>63||plen%7) return `长度不对：应为 7 的倍数（7~63），收到 ${plen} 位`;
+  if(plen<7||plen>KEY.length*7||plen%7) return `长度不对：应为 7 的倍数（7~' + KEY.length*7 + '），收到 ${plen} 位`;
   const pay=body.slice(0,plen);
   if(B62[pay.split('').reduce((a,c)=>a+c.charCodeAt(0),0)%62]!==body[plen]) return '校验位不匹配（可能抄漏/抄错）';
   const next={}; KEY.forEach(k=>next[k]={});
