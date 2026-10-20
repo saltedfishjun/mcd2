@@ -274,10 +274,10 @@
 <body>
 <div class="wrap">
   <h1>MCD2 <span class="e">配装器</span> <span style="font-size:13px;color:var(--dim)">Demo</span></h1>
-  <div class="sub">数据取自本地图鉴档案（272 件可装备 · 61 装备词条 · 32 附魔）· 全前端 · 进度与配装存本地</div>
+  <div class="sub">数据取自本地图鉴档案（296 件可装备 · 61 装备词条 · 32 附魔）· 全前端 · 进度与配装存本地</div>
 
   <div class="rules">
-    <b>规则</b>：一套 = 近战×1 + 远程×1 + 头盔/胸甲/护腿/靴 + 法器×3。每件装备 <b>3 个词条</b>（独特 = 1 独特词条固定 + 2 可选；其他 = 3 可选）；
+    <b>规则</b>：一套 = 近战×1 + 远程×1 + 头盔/胸甲/护腿/靴 + 法器×3 + 护符×3。每件装备 <b>3 个词条</b>（独特 = 1 独特词条固定 + 2 可选；其他 = 3 可选）；
     每件 <b>1 个附魔</b>，可选范围<b>按图鉴附魔池</b>（法器无附魔）。
     <details style="margin-top:6px">
       <summary class="dsum" style="font-size:12px">使用提示</summary>
@@ -345,6 +345,10 @@
       <div class="row r3">
         <div class="slot" data-slot="art0"></div><div class="slot" data-slot="art1"></div><div class="slot" data-slot="art2"></div>
       </div>
+      <h2>护符</h2>
+      <div class="row r3">
+        <div class="slot" data-slot="tal0"></div><div class="slot" data-slot="tal1"></div><div class="slot" data-slot="tal2"></div>
+      </div>
     </div>
 
     <div class="colmid">
@@ -382,9 +386,9 @@
 <script src="drop-sources.js"></script>
 <script>
 // 2026-10-05 主人要求：删除职业分类，元素分类改为 灵魂/毒/电/冰/火/纯物理
-const SLOT_LABEL={melee:'近战武器',ranged:'远程武器',helm:'头盔',chest:'胸甲',legs:'护腿',boots:'靴子',artifact:'法器'};
-const KIND={melee:'melee',ranged:'ranged',helm:'helm',chest:'chest',legs:'legs',boots:'boots',art0:'artifact',art1:'artifact',art2:'artifact'};
-const KEY=['melee','ranged','helm','chest','legs','boots','art0','art1','art2'];
+const SLOT_LABEL={melee:'近战武器',ranged:'远程武器',helm:'头盔',chest:'胸甲',legs:'护腿',boots:'靴子',artifact:'法器',talisman:'护符'};
+const KIND={melee:'melee',ranged:'ranged',helm:'helm',chest:'chest',legs:'legs',boots:'boots',art0:'artifact',art1:'artifact',art2:'artifact',tal0:'talisman',tal1:'talisman',tal2:'talisman'};
+const KEY=['melee','ranged','helm','chest','legs','boots','art0','art1','art2','tal0','tal1','tal2'];
 let DB=null,S={},saves={},curPick=null,curType='melee';
 
 function boot(j){ DB=j; initFilters(); load(); drawAll(); refreshSaves();
@@ -700,7 +704,7 @@ const pctOf=s=>{const m=(s||'').match(/(\d+(?:\.\d+)?)\s*%/);return m?m[1]+'%':n
 function collectStats(){
   const sums={};   // 大类 -> 小类 -> {v 合计, n 条数, src}
   const ench=[];   // 附魔单独列出
-  let nAff=0,nEnch=0,slots=0;
+  let nAff=0,nEnch=0,slots=0; const arts=[]; const tals=[];
   const add=(text,label,src)=>{ const f=findSub(text); if(!f) return; const p=pctNum(text); if(!p) return;
     const c=sums[f.cat]||(sums[f.cat]={}); const s=c[f.sub]||(c[f.sub]={v:0,n:0,src:[]});
     if(f.cat==='冷却缩减'){ s.sum=(s.sum||0)+p/100; s.v=Math.round((1-Math.exp(-1.4055*s.sum))*1000)/10; } else { s.v+=p; }
@@ -711,12 +715,20 @@ function collectStats(){
       add(activeDesc(a.base,'aff',a.tier), affDef(a.base).name, it.n); });
     if(st.ench&&st.ench.base){ nEnch++; st.ench.tier=maxTier(enchDef(st.ench.base));
       ench.push({n:enchDef(st.ench.base).name, t:st.ench.tier||'', d:activeDesc(st.ench.base,'ench',st.ench.tier), item:it.n}); }
+    if(it.slot==='artifact'){
+      const alines=(st.aff||[]).filter(function(a){return a&&a.base}).map(function(a){ return activeDesc(a.base,'aff',maxTier(affDef(a.base))); });
+      arts.push({n:it.n, cost:it.cost, lines:alines});
+    }
+    if(it.slot==='talisman'){
+      const tl=(it.fx||[]).map(function(f){ return f.desc; }).filter(Boolean);
+      tals.push({n:it.n, lines:tl});
+    }
   });
-  return {sums,ench,nAff,nEnch,slots};
+  return {sums,ench,nAff,nEnch,slots,arts,tals};
 }
 function renderStats(){
   const s=collectStats();
-  let h=`<div class="sec-top"><div class="stat-top">已装备 <b>${s.slots}/9</b> ・ 词条 <b>${s.nAff}</b> ・ 附魔 <b>${s.nEnch}</b></div>`;
+  let h=`<div class="sec-top"><div class="stat-top">已装备 <b>${s.slots}/${KEY.length}</b> ・ 词条 <b>${s.nAff}</b> ・ 附魔 <b>${s.nEnch}</b></div>`;
   // ── 大项一：词条（大类 -> 小类，两级合计）
   let any=false;
   const rowHTML=(name,src,v,n)=>{
@@ -736,6 +748,18 @@ function renderStats(){
   });
   if(!any) h+=`<div class="tagline">（还没有可统计的词条）</div>`;
   h+=`</div>`;
+  // ── 大项一·补：法器（3 件，展示最高阶效果）
+  var talsHtml = '<div class="sec-ench"><div class="bighead" style="margin:0 0 4px">护符 <span class="tagline">(' + s.tals.length + ')</span></div>';
+  if(s.tals.length){
+    talsHtml += s.tals.map(function(a){
+      var sub = a.lines.length ? '<div class="tagline">' + a.lines.map(hlPct).join(' / ') + '</div>' : '<div class="tagline">效果未收录</div>';
+      return '<div class="sg-i">◇ ' + esc(a.n) + sub + '</div>';
+    }).join('');
+  } else {
+    talsHtml += '<div class="tagline">（未装备护符）</div>';
+  }
+  talsHtml += '</div>';
+  h += talsHtml;
   // ── 大项二：附魔（单独显示，件件不同/不成类，故不合计）
   h+=`<div class="sec-ench"><div class="bighead" style="margin:0 0 4px">附魔 <span class="tagline">(${s.ench.length})</span></div>`;
   h+= s.ench.length
