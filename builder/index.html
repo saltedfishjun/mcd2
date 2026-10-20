@@ -545,9 +545,19 @@ function renderList(){
     const it=list[idx]; if(!it) return;
     const d=dropShort(it.id); if(!d) return;
     const box=el.lastElementChild; if(!box) return;
-    const t=document.createElement("div"); t.className="t drop";
-    t.style.color="#9ad3a0"; t.textContent="📍 掉落：" + d;
-    box.appendChild(t);
+    const parts=d.split(" · ");
+    const areas=(parts[0]||"").split(" / ").filter(Boolean);
+    const boss=parts.slice(1).join(" · ");
+    areas.forEach(function(a){
+      const t=document.createElement("div"); t.className="t drop";
+      t.style.color="#9ad3a0"; t.style.fontSize="11.5px"; t.style.lineHeight="1.5";
+      t.textContent="📍 区域：" + a; box.appendChild(t);
+    });
+    if(boss){
+      const t2=document.createElement("div"); t2.className="t drop";
+      t2.style.color="#e0c58a"; t2.style.fontSize="11.5px"; t2.style.lineHeight="1.5";
+      t2.textContent="⚔ 来源：" + boss; box.appendChild(t2);
+    }
   });
 }
 function choose(id){
