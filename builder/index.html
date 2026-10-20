@@ -955,15 +955,36 @@ function saveShareCode(short,long){
     slots:KEY.filter(k=>S[k]&&S[k].id).length, long:long||''};
   try{ localStorage.setItem('mcd2codes', JSON.stringify(db)); }catch(e){}
 }
-const SHARE_API='/api/share';
+const SHARE_APIS=['/api/share','https://share.杯子网.top/api/share'];
+async function sharePost(payload){
+  for(let i=0;i<SHARE_APIS.length;i++){
+    try{
+      const r=await fetch(SHARE_APIS[i],{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(r.ok) return r;
+      if(r.status===404||r.status===405||r.status===501) continue;
+      return r;
+    }catch(e){}
+  }
+  return null;
+}
+async function shareGet(code){
+  for(let i=0;i<SHARE_APIS.length;i++){
+    try{
+      const r=await fetch(SHARE_APIS[i]+'/'+code);
+      if(r.ok||r.status===404) return r;
+      if(r.status===405||r.status===501) continue;
+      return r;
+    }catch(e){}
+  }
+  return null;
+}
 const SHORT_RE=/^[2-9A-HJ-NP-Z]{6}$/;   // 与后端字母表一致（去 0/1/I/O）
 // 生成分享码：优先走后端拿 6 位短码；服务不可用时回退为自包含长码
 async function makeShare(){
   const long=buildCode();
   try{
-    const r=await fetch(SHARE_API,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:document.getElementById('name').value||'',code:long})});
-    if(r.ok){ const j=await r.json(); if(j&&j.code){ saveShareCode(j.code,long); return {code:j.code,short:true,long}; } }
+    const r=await sharePost({name:document.getElementById('name').value||'',code:long});
+    if(r&&r.ok){ const j=await r.json(); if(j&&j.code){ saveShareCode(j.code,long); return {code:j.code,short:true,long}; } }
   }catch(e){}
   saveShareCode(long,long);
   return {code:long,short:false,long};
@@ -999,15 +1020,16 @@ async function loadCodeUI(){
   const inp=document.getElementById('shareCode');
   let code=(inp&&inp.value||'').trim().replace(/[^0-9A-Za-z]/g,'');
   if(!code) return toast('请输入分享代码');
-  if(SHORT_RE.test(code) && !SHARE_API){
+  if(SHORT_RE.test(code) && !SHARE_APIS.length){
     return toast('❌ 6 位短码需要分享服务；本站是纯静态托管，请改用「复制分享链接」或自包含长码');
   }
   if(SHORT_RE.test(code)){                       // 6 位短码 → 找分享服务
     let src=null;
     try{
-      const r=await fetch(SHARE_API+'/'+code);
+      const r=await shareGet(code);
       if(r.ok){ const j=await r.json(); src=j.code_src||null; }
       else if(r.status===404){ const l=shares()[code]; if(l&&l.long) src=l.long; else return toast('❌ 找不到该分享码'); }
+      else if(!r){ const l=shares()[code]; if(l&&l.long) src=l.long; else return toast('❌ 连不上分享服务'); }
       else return toast('❌ 分享服务异常（'+r.status+'）');
     }catch(e){ const l=shares()[code]; if(l&&l.long) src=l.long; else return toast('❌ 连不上分享服务'); }
     if(!src) return toast('❌ 该分享码内容不完整');
